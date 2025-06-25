@@ -128,3 +128,6 @@ test-results.xml
 
 # Local development
 .local/ 
+
+# Archive
+archive/

@@ -1,3 +1,29 @@
+/**
+ * ===============================
+ * # tailwind.config.js Documentation
+ * ===============================
+ * ## Summary
+ * The `tailwind.config.js` file is a configuration file for Tailwind CSS. It specifies the content, theme, and plugins used in the project.
+ *
+ * ## Detailed Documentation
+ *
+ * ### Content
+ * - Specifies the files to be processed by Tailwind CSS.
+ * - Includes pages, components, and app directories.
+ *
+ * ### Theme
+ * - Extends the default Tailwind theme.
+ * - Defines custom colors, fonts, and animations.
+ * 
+ * ### Plugins
+ * - Includes the `@tailwindcss/forms` plugin for form styling.
+ *
+ * ### Version History
+ * - **0.1.1** (June 24th, 2024): Initial version with basic configuration.
+ *
+ * ### TODO List
+ * - [ ] Add more custom colors and fonts. 
+
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   content: [

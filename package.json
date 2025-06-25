@@ -1,8 +1,8 @@
 {
   "name": "sundayl",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
-  "description": "SundayL - Intelligent Email Assistant & MAGK Framework",
+  "description": "SundayL - Intelligent Email Assistant & MAGK Framework, a new way to build AI-powered applications",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

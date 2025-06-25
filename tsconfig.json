@@ -1,6 +1,42 @@
+/**
+ * ===============================
+ * # tsconfig.json Documentation
+ * ===============================
+ * ## Summary
+ * The `tsconfig.json` file is a crucial configuration file in a TypeScript project. It specifies the root files and the compiler options required to compile the project. This file allows developers to customize the TypeScript compiler settings to suit the needs of their project.
+ *
+ * ## Detailed Documentation
+ *
+ * ### Compiler Options
+ * - **target**: Specifies the ECMAScript target version. Common values are `es5`, `es6`, `es2015`, etc.
+ * - **lib**: Specifies the library files to be included in the compilation. Examples include `dom`, `es6`, `dom.iterable`.
+ * - **allowJs**: Allows JavaScript files to be compiled. Useful for gradually migrating a JavaScript project to TypeScript.
+ * - **skipLibCheck**: Skips type checking of all declaration files (`.d.ts`). This can speed up the compilation process.
+ * - **strict**: Enables all strict type-checking options. This is recommended for catching potential errors early.
+ * - **noEmit**: Prevents the compiler from generating output files. Useful when you only want to perform type checking.
+ * - **esModuleInterop**: Enables emit interoperability between CommonJS and ES Modules via `__importStar` and `__importDefault`.
+ * - **module**: Specifies the module code generation. Common values are `commonjs`, `esnext`, `amd`, etc.
+ * - **moduleResolution**: Determines how modules are resolved. Options include `node` and `classic`.
+ * - **resolveJsonModule**: Allows importing modules with a `.json` extension.
+ * - **isolatedModules**: Ensures that each file is treated as a separate module. Useful for projects using Babel.
+ * - **jsx**: Specifies the JSX code generation. Options include `preserve`, `react`, `react-native`.
+ * - **incremental**: Enables incremental compilation, which can improve build performance.
+ * - **plugins**: Specifies plugins to be used during the compilation process.
+ * - **baseUrl**: Specifies the base directory to resolve non-relative module names.
+ * - **paths**: A series of entries which re-map imports to lookup locations relative to the `baseUrl`.
+ *
+ * ### Version History
+ * - **0.1.1** (June 24th, 2024): Initial version with basic compiler options set for a Next.js project.
+ *
+ * ### TODO List
+ * - [ ] Review and update the `target` option to ensure compatibility with the latest ECMAScript features.
+ * - [ ] Consider enabling `strict` mode for better type safety.
+ * - [ ] Evaluate the need for additional `lib` entries as the project evolves.
+ */
+
 {
   "compilerOptions": {
-    "target": "es5",
+    "target": "es5", // es5 or es6? 
     "lib": ["dom", "dom.iterable", "es6"],
     "allowJs": true,
     "skipLibCheck": true,
@@ -38,3 +74,4 @@
     "node_modules"
   ]
 } 
+
