@@ -13,10 +13,14 @@ export interface OpenAIResponse<T = any> {
   usage?: OpenAIUsage;
 }
 
-// Cost per 1k tokens (fix this to gpt-4o-mini pricing)
-const COST_PER_1K_TOKENS = {
-  input: 0.0015,
-  output: 0.002,
+// Model-specific cost (per 1K tokens) based on OpenAI pricing 2025-06-25
+// https://openai.com/pricing  
+// NOTE: values are subject to change – keep in sync with docs
+const MODEL_PRICING: Record<string, { input: number; output: number }> = {
+  'gpt-4o-mini': { input: 0.0005, output: 0.0015 }, // 4o-mini (previously 4.1 mini)
+  'gpt-4o-nano': { input: 0.00025, output: 0.00075 }, // 4o-nano (hypothetical pricing)
+  'gpt-4o': { input: 0.005, output: 0.015 }, // full 4o (previously 4.1)
+  'gpt-3.5-turbo': { input: 0.0005, output: 0.0015 }, // fallback
 };
 
 class OpenAIService {
@@ -55,10 +59,33 @@ class OpenAIService {
     return json;
   }
 
-  private calculateCost(usage: any): number {
-    const inputCost = (usage.prompt_tokens / 1000) * COST_PER_1K_TOKENS.input;
-    const outputCost = (usage.completion_tokens / 1000) * COST_PER_1K_TOKENS.output;
+  private calculateCost(usage: any, model: string): number {
+    const pricing = MODEL_PRICING[model] || MODEL_PRICING['gpt-3.5-turbo'];
+    const inputCost = (usage.prompt_tokens / 1000) * pricing.input;
+    const outputCost = (usage.completion_tokens / 1000) * pricing.output;
     return inputCost + outputCost;
+  }
+
+  /**
+   * OpenAI Moderation endpoint – rejects content that is flagged.
+   * Returns true if content is considered safe.
+   */
+  private async isContentSafe(text: string): Promise<boolean> {
+    try {
+      const res = await fetch(`${this.baseURL}/moderations`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.apiKey}`,
+        },
+        body: JSON.stringify({ input: text }),
+      });
+      const json = await res.json();
+      if (!res.ok) return false;
+      return !json.results?.[0]?.flagged;
+    } catch {
+      return true; // fail-open to avoid blocking – log elsewhere
+    }
   }
 
   async summarizeThread(thread: EmailThread, messages: Email[]): Promise<OpenAIResponse<string>> {
@@ -77,21 +104,24 @@ ${conversationText}
 
 Summary:`;
 
+      const summarizeModel = 'gpt-4o-mini';
       const data = await this.makeRequest('/chat/completions', {
-        model: 'gpt-4o',
+        model: summarizeModel,
         messages: [
           { 
             role: 'system', 
-            content: 'You are SundayL, an AI chief-of-staff that reasons deeply over email history, knowledge base (people & projects), and metadata to create insightful, factual, terse summaries (1-2 sentences).' 
+            content: 'You are SundayL, an AI chief-of-staff that reasons deeply over email history, knowledge base (people & projects), and metadata to create insightful, factual, terse summaries (1-2 sentences). Ensure the summary is safe and free of sensitive personal data.' 
           },
           { role: 'user', content: prompt },
         ],
-        max_tokens: 100,
+        max_tokens: 120,
         temperature: 0.3,
       });
 
-      const summary = data.choices?.[0]?.message?.content?.trim() || 'Unable to generate summary';
-      const cost = this.calculateCost(data.usage);
+      const rawSummary = data.choices?.[0]?.message?.content?.trim() || '';
+      const isSafe = await this.isContentSafe(rawSummary);
+      const summary = isSafe ? rawSummary : '⚠️ Content removed due to safety flags.';
+      const cost = this.calculateCost(data.usage, summarizeModel);
 
       console.log('[OpenAIService] Generated summary:', summary);
 
@@ -136,21 +166,24 @@ Generate a reply that:
 
 Reply:`;
 
+      const replyModel = 'gpt-4o';
       const data = await this.makeRequest('/chat/completions', {
-        model: 'gpt-4o',
+        model: replyModel,
         messages: [
           { 
             role: 'system', 
-            content: 'You are Jack (SundayL). Craft polished, context-aware replies grounded strictly in the conversation history and knowledge base. End with "Best regards, Jack".' 
+            content: 'You are an AI executive assistant drafting professional, context-aware email replies grounded strictly in the conversation history and knowledge base. Maintain a helpful, respectful tone, avoid disallowed content, and do NOT fabricate information. Do not add a human signature – that will be appended later.' 
           },
           { role: 'user', content: prompt },
         ],
-        max_tokens: 300,
+        max_tokens: 480,
         temperature: 0.7,
       });
 
-      const reply = data.choices?.[0]?.message?.content?.trim() || 'Unable to generate reply';
-      const cost = this.calculateCost(data.usage);
+      const rawReply = data.choices?.[0]?.message?.content?.trim() || '';
+      const isSafe = await this.isContentSafe(rawReply);
+      const reply = isSafe ? rawReply : '⚠️ AI reply removed due to safety flags.';
+      const cost = this.calculateCost(data.usage, replyModel);
 
       console.log('[OpenAIService] Generated reply:', reply);
 
@@ -188,8 +221,9 @@ Tasks:
 - [task 1 if any]
 - [task 2 if any]`;
 
+      const analyzeModel = 'gpt-4o-mini';
       const data = await this.makeRequest('/chat/completions', {
-        model: 'gpt-4o',
+        model: analyzeModel,
         messages: [
           { 
             role: 'system', 
@@ -197,7 +231,7 @@ Tasks:
           },
           { role: 'user', content: prompt },
         ],
-        max_tokens: 200,
+        max_tokens: 256,
         temperature: 0.3,
       });
 
@@ -208,7 +242,7 @@ Tasks:
       const tasks = (taskParts.join('').match(/- (.+)/g) || [])
         .map((t: string) => t.replace(/^- /, '').trim());
 
-      const cost = this.calculateCost(data.usage);
+      const cost = this.calculateCost(data.usage, analyzeModel);
 
       return {
         success: true,
@@ -224,6 +258,33 @@ Tasks:
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
       };
+    }
+  }
+
+  /**
+   * Classify the importance (urgent | high | medium | low) of an email thread.
+   */
+  async classifyImportance(thread: EmailThread, messages: Email[]): Promise<OpenAIResponse<'urgent' | 'high' | 'medium' | 'low'>> {
+    try {
+      const conversationText = messages.map(m => `${m.sender}: ${m.body}`).slice(0, 10).join('\n');
+      const prompt = `You are a senior executive assistant. Based on the following conversation, classify the OVERALL urgency level as one of exactly these values: urgent, high, medium, low. Reply with ONLY the single word.\n\n${conversationText}`;
+
+      const model = 'gpt-4o-nano';
+      const data = await this.makeRequest('/chat/completions', {
+        model,
+        messages: [
+          { role: 'user', content: prompt },
+        ],
+        max_tokens: 1,
+        temperature: 0.0,
+      });
+
+      const classification = (data.choices?.[0]?.message?.content || '').trim().toLowerCase() as 'urgent' | 'high' | 'medium' | 'low';
+      const cost = this.calculateCost(data.usage, model);
+
+      return { success: true, data: classification, usage: { tokens: data.usage.total_tokens, cost, operation: 'analyze' } };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
   }
 }

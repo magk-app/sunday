@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing OpenAI API key' }, { status: 500 });
     }
 
-    const prompt = `Summarize the following email and extract any tasks as a list:\n\nSubject: ${subject || ''}\n\n${body}\n\nSummary:`;
+    const prompt = `You are a helpful assistant. Summarize the following email in 1-2 sentences and extract any explicit tasks/action items as a bullet list. Keep language neutral and professional.\n\nSubject: ${subject || ''}\n\n${body}\n\nReturn in this exact format:\nSummary: <summary here>\nTasks:\n- <task 1>\n- <task 2>`;
     const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
         'Authorization': `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: 'gpt-3.5-turbo',
+        model: 'gpt-4o-mini',
         messages: [
           { role: 'system', content: 'You are an expert email assistant.' },
           { role: 'user', content: prompt },
