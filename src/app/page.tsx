@@ -16,14 +16,38 @@ const LS_DRAFTS_KEY = 'drafts';
 
 function loadThreads() {
   if (typeof window === 'undefined') return mockThreads;
-  const raw = localStorage.getItem(LS_THREADS_KEY);
-  return raw ? JSON.parse(raw) : mockThreads;
+  try {
+    const raw = localStorage.getItem(LS_THREADS_KEY);
+    if (raw) {
+      const arr = JSON.parse(raw);
+      // Parse dates properly
+      return arr.map((t: any) => ({
+        ...t,
+        last_message_at: t.last_message_at ? new Date(t.last_message_at) : new Date(),
+        created_at: t.created_at ? new Date(t.created_at) : new Date(),
+        updated_at: t.updated_at ? new Date(t.updated_at) : new Date(),
+      }));
+    }
+  } catch {}
+  return mockThreads;
 }
 
 function loadDrafts() {
   if (typeof window === 'undefined') return mockDraftReplies;
-  const raw = localStorage.getItem(LS_DRAFTS_KEY);
-  return raw ? JSON.parse(raw) : mockDraftReplies;
+  try {
+    const raw = localStorage.getItem(LS_DRAFTS_KEY);
+    if (raw) {
+      const arr = JSON.parse(raw);
+      return arr.map((d: any) => ({
+        ...d,
+        generated_at: d.generated_at ? new Date(d.generated_at) : new Date(),
+        created_at: d.created_at ? new Date(d.created_at) : new Date(),
+        updated_at: d.updated_at ? new Date(d.updated_at) : new Date(),
+        sent_at: d.sent_at ? new Date(d.sent_at) : undefined,
+      }));
+    }
+  } catch {}
+  return mockDraftReplies;
 }
 
 function saveThreads(threads: any) {
@@ -34,23 +58,73 @@ function saveDrafts(drafts: any) {
   localStorage.setItem(LS_DRAFTS_KEY, JSON.stringify(drafts));
 }
 
+// Usage tracking functions
+function updateUsageTracking(tokens: number, cost: number) {
+  const prevTokens = Number(localStorage.getItem('usage_tokens') || '0');
+  const prevCost = Number(localStorage.getItem('usage_cost') || '0');
+  localStorage.setItem('usage_tokens', String(prevTokens + tokens));
+  localStorage.setItem('usage_cost', String(prevCost + cost));
+  window.dispatchEvent(new Event('usage-updated'));
+}
+
 export default function HomePage() {
-  const [threads, setThreads] = useState<EmailThread[]>(loadThreads());
-  const [drafts, setDrafts] = useState<DraftReply[]>(loadDrafts());
-  const [selectedThreadId, setSelectedThreadId] = useState<string | null>(threads[0]?.id || null);
+  const [threads, setThreads] = useState<EmailThread[]>([]);
+  const [drafts, setDrafts] = useState<DraftReply[]>([]);
+  const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
   const [selectedFolder, setSelectedFolder] = useState<FolderKey>('inbox');
   const [credits, setCredits] = useState<number>(100);
   const [totalCreditsUsed, setTotalCreditsUsed] = useState<number>(0);
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  // Initialize data only on client to avoid hydration issues
+  useEffect(() => {
+    setMounted(true);
+    setThreads(loadThreads());
+    setDrafts(loadDrafts());
+    const firstThread = loadThreads()[0];
+    if (firstThread) {
+      setSelectedThreadId(firstThread.id);
+    }
+  }, []);
+
+  // Listen for storage changes from Tinder
+  useEffect(() => {
+    const handleStorageChange = () => {
+      setThreads(loadThreads());
+      setDrafts(loadDrafts());
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
+  // Sync localStorage whenever threads or drafts change
+  useEffect(() => {
+    if (mounted) {
+      saveThreads(threads);
+    }
+  }, [threads, mounted]);
+
+  useEffect(() => {
+    if (mounted) {
+      saveDrafts(drafts);
+    }
+  }, [drafts, mounted]);
+
+  if (!mounted) {
+    return <div>Loading...</div>; // Prevent hydration mismatch
+  }
 
   const selectedThread = threads.find(t => t.id === selectedThreadId) || null;
   const threadMessages = selectedThread ? getThreadMessages(selectedThread.id) : [];
   const currentDraft = drafts.find(d => d.thread_id === selectedThreadId && d.status === 'pending') || null;
 
   const visibleThreads = threads.filter(t => {
-    if (selectedFolder === 'inbox') return t.status === 'active';
-    if (selectedFolder === 'approved') return t.status === ('approved' as any);
-    if (selectedFolder === 'rejected') return t.status === ('rejected' as any);
+    if (selectedFolder === 'inbox') return !t.status || t.status === 'active' || t.status === 'pending';
+    if (selectedFolder === 'important') return t.important;
+    if (selectedFolder === 'approved') return t.status === 'approved';
+    if (selectedFolder === 'rejected') return t.status === 'rejected';
     return true;
   });
 
@@ -60,15 +134,14 @@ export default function HomePage() {
 
     // Persist usage summary for Settings page
     if (tokens !== undefined && cost !== undefined) {
-      const prevTokens = Number(localStorage.getItem('usage_tokens') || '0');
-      const prevCost = Number(localStorage.getItem('usage_cost') || '0');
-      localStorage.setItem('usage_tokens', String(prevTokens + tokens));
-      localStorage.setItem('usage_cost', String(prevCost + cost));
-      window.dispatchEvent(new Event('usage-updated'));
+      updateUsageTracking(tokens, cost);
     }
   };
 
   const handleApprove = (draftId: string) => {
+    const draft = drafts.find(d => d.id === draftId);
+    if (!draft || draft.status === 'sent') return; // Prevent re-sending
+
     setDrafts(prev => {
       const updated = prev.map(d => d.id === draftId ? { ...d, status: 'sent' as const, sent_at: new Date() } : d);
       saveDrafts(updated);
@@ -81,9 +154,15 @@ export default function HomePage() {
     });
     setNotification({ message: '✨ Reply sent successfully!', type: 'success' });
     handleCreditsUsed(2); // Deduct credits for sending
+    
+    // Dispatch storage event to sync with Tinder
+    window.dispatchEvent(new Event('storage'));
   };
 
   const handleReject = (draftId: string) => {
+    const draft = drafts.find(d => d.id === draftId);
+    if (!draft || draft.status === 'sent') return; // Prevent re-rejecting sent drafts
+
     setDrafts(prev => {
       const updated = prev.map(d => d.id === draftId ? { ...d, status: 'rejected' as const } : d);
       saveDrafts(updated);
@@ -94,11 +173,35 @@ export default function HomePage() {
       saveThreads(updated);
       return updated;
     });
-    setNotification({ message: 'Draft rejected and archived', type: 'error' });
+    setNotification({ message: 'Thread rejected and archived', type: 'error' });
+    
+    // Dispatch storage event to sync with Tinder
+    window.dispatchEvent(new Event('storage'));
   };
 
   const handleGenerateReply = async () => {
     if (!selectedThreadId || !selectedThread) return;
+    
+    // For already processed threads, allow creating new replies but remove the existing draft first
+    if (selectedThread.status === 'approved' || selectedThread.status === 'rejected') {
+      // Remove any existing drafts for this thread and allow new generation
+      setDrafts(prev => {
+        const updated = prev.filter(d => d.thread_id !== selectedThreadId);
+        saveDrafts(updated);
+        return updated;
+      });
+    } else {
+      // For active threads, check if a pending draft already exists
+      const existingDraft = drafts.find(d => d.thread_id === selectedThreadId && d.status === 'pending');
+      if (existingDraft) {
+        // Allow regeneration by removing the existing draft
+        setDrafts(prev => {
+          const updated = prev.filter(d => d.id !== existingDraft.id);
+          saveDrafts(updated);
+          return updated;
+        });
+      }
+    }
     
     if (credits < 5) {
       setNotification({ message: 'Insufficient credits to generate reply', type: 'error' });
@@ -140,6 +243,9 @@ export default function HomePage() {
         } else {
           setNotification({ message: '✨ AI reply generated!', type: 'success' });
         }
+        
+        // Dispatch storage event to sync with Tinder
+        window.dispatchEvent(new Event('storage'));
       } else {
         setNotification({ message: result.error || 'Failed to generate reply', type: 'error' });
       }
@@ -155,6 +261,9 @@ export default function HomePage() {
       saveThreads(updated);
       return updated;
     });
+    
+    // Dispatch storage event to sync with Tinder
+    window.dispatchEvent(new Event('storage'));
   };
 
   const handleSelectFolder = (key: string) => {
@@ -169,16 +278,21 @@ export default function HomePage() {
       saveThreads(updated);
       return updated;
     });
+    
+    // Dispatch storage event to sync with Tinder
+    window.dispatchEvent(new Event('storage'));
   };
 
-  // Sync localStorage whenever threads or drafts change
-  useEffect(() => {
-    saveThreads(threads);
-  }, [threads]);
-
-  useEffect(() => {
-    saveDrafts(drafts);
-  }, [drafts]);
+  const handleUpdateDraft = (draftId: string, newBody: string) => {
+    setDrafts(prev => {
+      const updated = prev.map(d => d.id === draftId ? { ...d, body: newBody, updated_at: new Date() } : d);
+      saveDrafts(updated);
+      return updated;
+    });
+    
+    // Dispatch storage event to sync with Tinder
+    window.dispatchEvent(new Event('storage'));
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -199,6 +313,7 @@ export default function HomePage() {
           onApprove={handleApprove}
           onReject={handleReject}
           onGenerateReply={handleGenerateReply}
+          onUpdateDraft={handleUpdateDraft}
           onNotify={(message: string, type: 'success' | 'error') => setNotification({ message, type })}
           onCreditsUsed={handleCreditsUsed}
           onSummaryGenerated={handleSummaryGenerated}

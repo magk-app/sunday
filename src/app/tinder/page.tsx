@@ -55,6 +55,15 @@ function saveDrafts(drafts: DraftReply[]) {
   localStorage.setItem(LS_DRAFTS_KEY, JSON.stringify(drafts));
 }
 
+// Usage tracking functions
+function updateUsageTracking(tokens: number, cost: number) {
+  const prevTokens = Number(localStorage.getItem('usage_tokens') || '0');
+  const prevCost = Number(localStorage.getItem('usage_cost') || '0');
+  localStorage.setItem('usage_tokens', String(prevTokens + tokens));
+  localStorage.setItem('usage_cost', String(prevCost + cost));
+  window.dispatchEvent(new Event('usage-updated'));
+}
+
 export default function TinderViewPage() {
   const [threads, setThreads] = useState<ThreadWithExtras[]>(loadThreads());
   const [drafts, setDrafts] = useState<DraftReply[]>(loadDrafts());
@@ -101,38 +110,151 @@ export default function TinderViewPage() {
     });
   };
 
-  const handleAction = async (action: 'approve' | 'reject' | 'edit' | 'save_kb' | 'cancel_edit') => {
+  const handleAction = async (action: 'approve' | 'reject' | 'edit' | 'save_kb' | 'cancel_edit' | 'auto_approve_with_kb' | 'reject_archive' | 'reject_with_kb') => {
     const current = threads[index];
     if (!current) return;
-    if (action === 'approve' || action === 'reject') {
+    
+    // Prevent actions on already processed threads
+    if ((action === 'approve' || action === 'reject' || action === 'auto_approve_with_kb' || action === 'reject_archive' || action === 'reject_with_kb') && (current.status === 'approved' || current.status === 'rejected')) {
+      setNotification('Thread already processed');
+      setTimeout(() => {
+        setNotificationFading(true);
+        setTimeout(() => {
+          setNotification(null);
+          setNotificationFading(false);
+        }, 300);
+      }, 2700);
+      return;
+    }
+    
+    if (action === 'approve' || action === 'auto_approve_with_kb') {
       setProcessedCount((c) => c + 1);
       setTimeSaved((t) => t + 5); // 5 min per email
-      updateThread({ status: action as 'approved' | 'rejected', has_draft: false, __handled: true });
-      if (currentDraft) updateDraft({ status: action === 'approve' ? 'sent' : 'rejected', sent_at: new Date() });
+      updateThread({ status: 'approved', has_draft: false, __handled: true });
+      if (currentDraft) updateDraft({ status: 'sent', sent_at: new Date() });
+      
+      // If auto-approve with KB, also save to knowledge base
+      if (action === 'auto_approve_with_kb') {
+        setIsProcessing(true);
+        const messages = getThreadMessages(current.id);
+        try {
+          const res = await openaiService.analyzeThreadFull(current, messages);
+          if (res.success && res.data) {
+            try {
+              const people = JSON.parse(localStorage.getItem('kb_people') || '[]');
+              const projects = JSON.parse(localStorage.getItem('kb_projects') || '[]');
+              const newPeople = [...people, ...res.data.people.filter((p: string) => !people.includes(p))];
+              const newProjects = [...projects, ...res.data.projects.filter((p: string) => !projects.includes(p))];
+              localStorage.setItem('kb_people', JSON.stringify(newPeople));
+              localStorage.setItem('kb_projects', JSON.stringify(newProjects));
+              
+              // Track usage if available
+              if (res.usage) {
+                updateUsageTracking(res.usage.tokens, res.usage.cost);
+              }
+              
+              setNotification('Thread approved & saved to Knowledge Base!');
+            } catch {
+              setNotification('Thread approved (KB save failed)');
+            }
+          } else {
+            setNotification('Thread approved (KB save failed)');
+          }
+        } catch (error) {
+          console.error('Failed to analyze thread:', error);
+          setNotification('Thread approved (KB save failed)');
+        }
+        setIsProcessing(false);
+      } else {
+        setNotification('Thread approved!');
+      }
+      
+      setTimeout(() => {
+        setIndex(i => Math.min(i + 1, threads.length - 1));
+      }, 300);
+    } else if (action === 'reject_archive' || action === 'reject_with_kb') {
+      setProcessedCount((c) => c + 1);
+      setTimeSaved((t) => t + 5); // 5 min per email
+      updateThread({ status: 'rejected', has_draft: false, __handled: true });
+      if (currentDraft) updateDraft({ status: 'rejected', sent_at: new Date() });
+      
+      // If reject with KB, also save to knowledge base
+      if (action === 'reject_with_kb') {
+        setIsProcessing(true);
+        const messages = getThreadMessages(current.id);
+        try {
+          const res = await openaiService.analyzeThreadFull(current, messages);
+          if (res.success && res.data) {
+            try {
+              const people = JSON.parse(localStorage.getItem('kb_people') || '[]');
+              const projects = JSON.parse(localStorage.getItem('kb_projects') || '[]');
+              const newPeople = [...people, ...res.data.people.filter((p: string) => !people.includes(p))];
+              const newProjects = [...projects, ...res.data.projects.filter((p: string) => !projects.includes(p))];
+              localStorage.setItem('kb_people', JSON.stringify(newPeople));
+              localStorage.setItem('kb_projects', JSON.stringify(newProjects));
+              
+              // Track usage if available
+              if (res.usage) {
+                updateUsageTracking(res.usage.tokens, res.usage.cost);
+              }
+              
+              setNotification('Thread rejected & saved to Knowledge Base');
+            } catch {
+              setNotification('Thread rejected (KB save failed)');
+            }
+          } else {
+            setNotification('Thread rejected (KB save failed)');
+          }
+        } catch (error) {
+          console.error('Failed to analyze thread:', error);
+          setNotification('Thread rejected (KB save failed)');
+        }
+        setIsProcessing(false);
+      } else {
+        setNotification('Thread rejected');
+      }
+      
       setTimeout(() => {
         setIndex(i => Math.min(i + 1, threads.length - 1));
       }, 300);
     } else if (action === 'save_kb') {
       setIsProcessing(true);
       const messages = getThreadMessages(current.id);
-      const res = await openaiService.analyzeThreadFull(current, messages);
-      if (res.success && res.data) {
-        try {
-          const people = JSON.parse(localStorage.getItem('kb_people') || '[]');
-          const projects = JSON.parse(localStorage.getItem('kb_projects') || '[]');
-          const newPeople = [...people, ...res.data.people.filter((p: string) => !people.includes(p))];
-          const newProjects = [...projects, ...res.data.projects.filter((p: string) => !projects.includes(p))];
-          localStorage.setItem('kb_people', JSON.stringify(newPeople));
-          localStorage.setItem('kb_projects', JSON.stringify(newProjects));
-          setNotification('Saved to Knowledge Base');
-        setTimeout(() => {
-          setNotificationFading(true);
-          setTimeout(() => {
-            setNotification(null);
-            setNotificationFading(false);
-          }, 300);
-        }, 2700);
-        } catch {
+      try {
+        const res = await openaiService.analyzeThreadFull(current, messages);
+        if (res.success && res.data) {
+          try {
+            const people = JSON.parse(localStorage.getItem('kb_people') || '[]');
+            const projects = JSON.parse(localStorage.getItem('kb_projects') || '[]');
+            const newPeople = [...people, ...res.data.people.filter((p: string) => !people.includes(p))];
+            const newProjects = [...projects, ...res.data.projects.filter((p: string) => !projects.includes(p))];
+            localStorage.setItem('kb_people', JSON.stringify(newPeople));
+            localStorage.setItem('kb_projects', JSON.stringify(newProjects));
+            
+            // Track usage if available
+            if (res.usage) {
+              updateUsageTracking(res.usage.tokens, res.usage.cost);
+            }
+            
+            setNotification('Saved to Knowledge Base');
+            setTimeout(() => {
+              setNotificationFading(true);
+              setTimeout(() => {
+                setNotification(null);
+                setNotificationFading(false);
+              }, 300);
+            }, 2700);
+          } catch {
+            setNotification('Failed to save to KB');
+            setTimeout(() => {
+              setNotificationFading(true);
+              setTimeout(() => {
+                setNotification(null);
+                setNotificationFading(false);
+              }, 300);
+            }, 2700);
+          }
+        } else {
           setNotification('Failed to save to KB');
           setTimeout(() => {
             setNotificationFading(true);
@@ -142,7 +264,8 @@ export default function TinderViewPage() {
             }, 300);
           }, 2700);
         }
-      } else {
+      } catch (error) {
+        console.error('Failed to analyze thread:', error);
         setNotification('Failed to save to KB');
         setTimeout(() => {
           setNotificationFading(true);
@@ -154,6 +277,22 @@ export default function TinderViewPage() {
       }
       setIsProcessing(false);
     } else if (action === 'edit') {
+      // Prevent editing sent drafts or drafts for processed threads
+      if (currentDraft && (currentDraft.status === 'sent' || current.status === 'approved' || current.status === 'rejected')) {
+        const message = currentDraft.status === 'sent' 
+          ? 'Cannot edit sent replies' 
+          : 'Cannot edit replies for processed threads. Generate a new reply instead.';
+        setNotification(message);
+        setTimeout(() => {
+          setNotificationFading(true);
+          setTimeout(() => {
+            setNotification(null);
+            setNotificationFading(false);
+          }, 300);
+        }, 2700);
+        return;
+      }
+      
       if (isEditing) {
         // Save the edit
         if (currentDraft && editedReply) {
@@ -183,7 +322,7 @@ export default function TinderViewPage() {
   const handleChangeReply = (newReply: string) => {
     setEditedReply(newReply);
     // Also update the draft immediately for streaming improvements
-    if (currentDraft) {
+    if (currentDraft && currentDraft.status !== 'sent') {
       updateDraft({ body: newReply, updated_at: new Date() });
     }
   };
@@ -203,28 +342,44 @@ export default function TinderViewPage() {
           let updatedDrafts = [...drafts];
           // Generate summary if missing
           if (!t.summary) {
-            const resSum = await openaiService.summarizeThread(t, messages, true);
-            if (resSum.success && resSum.data) {
-              updatedThreads[index].summary = resSum.data;
+            try {
+              const resSum = await openaiService.summarizeThread(t, messages, true);
+              if (resSum.success && resSum.data) {
+                updatedThreads[index].summary = resSum.data;
+                // Track usage
+                if (resSum.usage) {
+                  updateUsageTracking(resSum.usage.tokens, resSum.usage.cost);
+                }
+              }
+            } catch (error) {
+              console.error('Failed to generate summary:', error);
             }
           }
-          // Generate reply if missing
+          // Generate reply if missing and not already processed
           const existingDraft = updatedDrafts.find(d => d.thread_id === t.id && d.status === 'pending');
-          if (!existingDraft) {
-            const resRep = await openaiService.generateReply(t, messages);
-            if (resRep.success && resRep.data) {
-              const newDraft: DraftReply = {
-                id: `draft_${Date.now()}_${Math.random().toString(36).slice(2)}`,
-                thread_id: t.id,
-                user_id: 'user_jack',
-                body: resRep.data,
-                generated_at: new Date(),
-                status: 'pending' as const,
-                created_at: new Date(),
-                updated_at: new Date(),
-              };
-              updatedDrafts.push(newDraft);
-              updatedThreads[index].has_draft = true;
+          if (!existingDraft && t.status !== 'approved' && t.status !== 'rejected') {
+            try {
+              const resRep = await openaiService.generateReply(t, messages);
+              if (resRep.success && resRep.data) {
+                const newDraft: DraftReply = {
+                  id: `draft_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+                  thread_id: t.id,
+                  user_id: 'user_jack',
+                  body: resRep.data,
+                  generated_at: new Date(),
+                  status: 'pending' as const,
+                  created_at: new Date(),
+                  updated_at: new Date(),
+                };
+                updatedDrafts.push(newDraft);
+                updatedThreads[index].has_draft = true;
+                // Track usage
+                if (resRep.usage) {
+                  updateUsageTracking(resRep.usage.tokens, resRep.usage.cost);
+                }
+              }
+            } catch (error) {
+              console.error('Failed to generate reply:', error);
             }
           }
           setThreads(updatedThreads);
@@ -243,11 +398,15 @@ export default function TinderViewPage() {
                   tCopy[index + 1].summary = resSum.data;
                   setThreads(tCopy);
                   saveThreads(tCopy);
+                  // Track usage
+                  if (resSum.usage) {
+                    updateUsageTracking(resSum.usage.tokens, resSum.usage.cost);
+                  }
                 }
-              });
+              }).catch(error => console.error('Background summary failed:', error));
             }
             const nextDraft = updatedDrafts.find(d => d.thread_id === next.id && d.status === 'pending');
-            if (!nextDraft) {
+            if (!nextDraft && next.status !== 'approved' && next.status !== 'rejected') {
               openaiService.generateReply(next, nextMessages).then(resRep => {
                 if (resRep.success && resRep.data) {
                   const newDraft: DraftReply = {
@@ -267,8 +426,12 @@ export default function TinderViewPage() {
                   tCopy[index + 1].has_draft = true;
                   setThreads(tCopy);
                   saveThreads(tCopy);
+                  // Track usage
+                  if (resRep.usage) {
+                    updateUsageTracking(resRep.usage.tokens, resRep.usage.cost);
+                  }
                 }
-              });
+              }).catch(error => console.error('Background reply failed:', error));
             }
           }
         })();

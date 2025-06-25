@@ -1,12 +1,12 @@
 import React, { useState, useRef, useEffect, forwardRef } from 'react';
 import { useSwipeable } from 'react-swipeable';
 import { motion, useMotionValue, useAnimation } from 'framer-motion';
-import type { EmailThread, Email } from '../types';
+import type { EmailThread, Email, Person, Project } from '../types';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
 import { Input } from './ui/input';
 import { Textarea } from './ui/textarea';
-import { getThreadMessages } from '../mock/threads';
+import { getThreadMessages, mockPeople, mockProjects } from '../mock/threads';
 import { CardContent, CardHeader, CardTitle } from './ui/card';
 import { Avatar } from './ui/avatar';
 import { openaiService } from '../lib/openai-service';
@@ -16,7 +16,7 @@ export interface TinderThreadCardProps {
   reply?: string;
   isEditing?: boolean;
   editedReply?: string;
-  onAction: (action: 'approve' | 'reject' | 'edit' | 'save_kb' | 'cancel_edit') => void;
+  onAction: (action: 'approve' | 'reject' | 'edit' | 'save_kb' | 'cancel_edit' | 'auto_approve_with_kb' | 'reject_archive' | 'reject_with_kb') => void;
   onChangeReply?: (text: string) => void;
   showExpand: boolean;
   setShowExpand: (show: boolean) => void;
@@ -43,6 +43,10 @@ const TinderThreadCard = forwardRef<HTMLDivElement, TinderThreadCardProps>(funct
   const [isStreaming, setIsStreaming] = useState(false);
   const [hasStreamedReply, setHasStreamedReply] = useState(false);
   const [showImproveChat, setShowImproveChat] = useState(false);
+  const [showRejectDialog, setShowRejectDialog] = useState(false);
+  const [autoSaveKB, setAutoSaveKB] = useState(() => {
+    return localStorage.getItem('auto_save_kb') !== 'false'; // Default to true
+  });
   const cardRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const summaryRef = useRef<HTMLDivElement>(null);
@@ -60,7 +64,7 @@ const TinderThreadCard = forwardRef<HTMLDivElement, TinderThreadCardProps>(funct
   let overlayLabel = '';
   if (swipeDir === 'right') {
     overlayColor = 'bg-green-500';
-    overlayLabel = 'APPROVE';
+    overlayLabel = autoSaveKB ? 'APPROVE + SAVE' : 'APPROVE';
   } else if (swipeDir === 'left') {
     overlayColor = 'bg-red-500';
     overlayLabel = 'REJECT';
@@ -84,6 +88,20 @@ const TinderThreadCard = forwardRef<HTMLDivElement, TinderThreadCardProps>(funct
   // Hide content if swiping past threshold
   const hideContent = swipeProgress > SWIPE_THRESHOLD;
   const overlayOpacity = Math.min(1, swipeProgress * 2);
+
+  // Function to handle approve with auto-save KB option
+  const handleApprove = () => {
+    if (autoSaveKB) {
+      onAction('auto_approve_with_kb');
+    } else {
+      onAction('approve');
+    }
+  };
+
+  // Function to handle reject - show dialog
+  const handleReject = () => {
+    setShowRejectDialog(true);
+  };
 
   // Swipe handlers
   const handlers = useSwipeable({
@@ -151,8 +169,15 @@ const TinderThreadCard = forwardRef<HTMLDivElement, TinderThreadCardProps>(funct
               if (textareaRef.current) textareaRef.current.focus();
             }, 220);
             onAction('edit');
-          } else {
-            onAction(dir === 'right' ? 'approve' : 'reject');
+          } else if (dir === 'right') {
+            handleApprove();
+          } else if (dir === 'left') {
+            // Reset card position and show reject dialog
+            controls.set({ x: 0, y: 0, opacity: 1, rotate: 0 });
+            setLocked(false);
+            setSwipeDir(null);
+            setSwipeProgress(0);
+            handleReject();
           }
         });
       } else {
@@ -194,6 +219,19 @@ const TinderThreadCard = forwardRef<HTMLDivElement, TinderThreadCardProps>(funct
     }
   }, [thread.id]);
 
+  // Handle jump target scrolling
+  useEffect(() => {
+    if (!mainContentRef.current) return;
+    
+    if (jumpTarget === 'summary' && summaryRef.current) {
+      const offsetTop = summaryRef.current.offsetTop - mainContentRef.current.offsetTop;
+      mainContentRef.current.scrollTo({ top: offsetTop, behavior: 'smooth' });
+    } else if (jumpTarget === 'reply' && replyRef.current) {
+      const offsetTop = replyRef.current.offsetTop - mainContentRef.current.offsetTop;
+      mainContentRef.current.scrollTo({ top: offsetTop, behavior: 'smooth' });
+    }
+  }, [jumpTarget]);
+
   // Reset states when improvement chat closes
   useEffect(() => {
     if (!showImproveChat) {
@@ -225,6 +263,16 @@ const TinderThreadCard = forwardRef<HTMLDivElement, TinderThreadCardProps>(funct
       }
       
       setHasStreamedReply(true);
+      
+      // Track usage for improvement - estimate tokens and cost
+      // Since this is streaming, we estimate based on input/output length
+      const estimatedTokens = Math.ceil((reply.length + userMessage.length + streamingReply.length) / 4);
+      const estimatedCost = estimatedTokens * 0.00002; // Rough estimate for GPT-4o
+      const prevTokens = Number(localStorage.getItem('usage_tokens') || '0');
+      const prevCost = Number(localStorage.getItem('usage_cost') || '0');
+      localStorage.setItem('usage_tokens', String(prevTokens + estimatedTokens));
+      localStorage.setItem('usage_cost', String(prevCost + estimatedCost));
+      window.dispatchEvent(new Event('usage-updated'));
     } catch (error) {
       console.error('Streaming error:', error);
       setStreamingReply('❌ Error: Failed to improve reply. Please check your connection and try again.');
@@ -338,31 +386,7 @@ const TinderThreadCard = forwardRef<HTMLDivElement, TinderThreadCardProps>(funct
 
           {/* Main content */}
           <div ref={mainContentRef} className="flex-1 overflow-y-auto pr-1 space-y-6">
-            {/* Simple navigation dots - only show when reply exists */}
-            {reply && (
-              <div className="fixed left-8 top-1/2 transform -translate-y-1/2 flex flex-col gap-4 z-10">
-                <button
-                  onClick={() => {
-                    if (summaryRef.current && mainContentRef.current) {
-                      const offsetTop = summaryRef.current.offsetTop - mainContentRef.current.offsetTop;
-                      mainContentRef.current.scrollTo({ top: offsetTop, behavior: 'smooth' });
-                    }
-                  }}
-                  className="w-3 h-3 bg-white/80 hover:bg-white rounded-full shadow-md hover:shadow-lg transition-all"
-                  title="AI Summary"
-                />
-                <button
-                  onClick={() => {
-                    if (replyRef.current && mainContentRef.current) {
-                      const offsetTop = replyRef.current.offsetTop - mainContentRef.current.offsetTop;
-                      mainContentRef.current.scrollTo({ top: offsetTop, behavior: 'smooth' });
-                    }
-                  }}
-                  className="w-3 h-3 bg-white/80 hover:bg-white rounded-full shadow-md hover:shadow-lg transition-all"
-                  title="AI Reply"
-                />
-              </div>
-            )}
+
 
             {/* AI Summary Section */}
             <div ref={summaryRef} className="mb-6">
@@ -419,19 +443,38 @@ const TinderThreadCard = forwardRef<HTMLDivElement, TinderThreadCardProps>(funct
                         </button>
                       </>
                     ) : (
-                      <>
-                        <button 
-                          className="bg-yellow-600 text-white px-3 py-2 rounded font-semibold hover:bg-yellow-700 transition text-sm"
-                          onClick={() => onAction('edit')}
-                        >
-                          ✏️ Edit Reply
-                        </button>
-                        <button 
-                          className="bg-purple-600 text-white px-3 py-2 rounded font-semibold hover:bg-purple-700 transition text-sm"
-                          onClick={() => setShowImproveChat(!showImproveChat)}
-                        >
-                          ✨ Improve with AI
-                        </button>
+                                                  <>
+                                                            <button 
+                                className={`px-3 py-2 rounded font-semibold transition text-sm ${
+                                  thread.status === 'approved' || thread.status === 'rejected'
+                                    ? 'bg-gray-400 text-gray-600 cursor-not-allowed'
+                                    : 'bg-yellow-600 text-white hover:bg-yellow-700'
+                                }`}
+                                onClick={() => onAction('edit')}
+                                disabled={thread.status === 'approved' || thread.status === 'rejected'}
+                              >
+                                ✏️ Edit Reply
+                              </button>
+                              
+                              {/* Show different buttons for processed vs active threads */}
+                              {thread.status === 'approved' || thread.status === 'rejected' ? (
+                                <button 
+                                  className="bg-blue-600 text-white px-3 py-2 rounded font-semibold hover:bg-blue-700 transition text-sm"
+                                  onClick={() => {
+                                    // This would need a new action type to be handled by the parent
+                                    onAction('edit'); // Temporarily use edit action for now
+                                  }}
+                                >
+                                  🔄 Generate New Reply
+                                </button>
+                              ) : (
+                                <button 
+                                  className="bg-purple-600 text-white px-3 py-2 rounded font-semibold hover:bg-purple-700 transition text-sm"
+                                  onClick={() => setShowImproveChat(!showImproveChat)}
+                                >
+                                  ✨ Improve with AI
+                                </button>
+                              )}
                         {hasStreamedReply && !streamingReply.startsWith('❌') && (
                           <button 
                             className="bg-green-600 text-white px-3 py-2 rounded font-semibold hover:bg-green-700 transition text-sm"
@@ -510,161 +553,274 @@ const TinderThreadCard = forwardRef<HTMLDivElement, TinderThreadCardProps>(funct
               </button>
             </div>
 
-                                      {/* Modal Content - Two Sections: Email Thread (Left) and AI Reply Console (Right) */}
-             <div className="flex-1 flex overflow-hidden">
-               {/* Left Section - Complete Email Thread */}
-               <div className="w-1/2 border-r overflow-y-auto custom-scrollbar bg-gray-50">
-                 <div className="p-6">
-                   <h4 className="font-semibold text-gray-800 text-xl mb-4">📧 Email Thread</h4>
-                   
-                   {/* Full Email Thread with Timeline */}
-                   <div className="space-y-4">
-                     {getThreadMessages(thread.id).map((msg, idx) => (
-                       <div key={idx} className="relative">
-                         <div className="flex gap-4">
-                           <div className="w-10 h-10 bg-gradient-to-br from-green-400 to-blue-500 rounded-full flex items-center justify-center text-sm text-white font-medium flex-shrink-0">
-                             {msg.sender[0].toUpperCase()}
-                           </div>
-                           <div className="flex-1">
-                             <div className="bg-white rounded-lg p-4 border shadow-sm">
-                               <div className="flex items-center gap-2 mb-2">
-                                 <span className="font-semibold text-sm">{msg.sender}</span>
-                                 <span className="text-xs text-gray-500">{new Date(msg.date).toLocaleString()}</span>
-                               </div>
-                               <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{msg.body}</p>
-                             </div>
-                           </div>
-                         </div>
-                         {/* Connecting line */}
-                         {idx < getThreadMessages(thread.id).length - 1 && (
-                           <div className="absolute left-5 top-12 w-0.5 h-8 bg-gray-300"></div>
-                         )}
-                       </div>
-                     ))}
-                   </div>
-                 </div>
-               </div>
+            {/* Modal Content - New Layout: Email Thread + Reply (Left) and Summary + People/Projects (Right) */}
+            <div className="flex-1 flex overflow-hidden">
+              {/* Left Section - Email Thread + Reply Draft */}
+              <div className="w-2/3 border-r overflow-y-auto custom-scrollbar bg-gray-50">
+                <div className="p-6 space-y-6">
+                  {/* Email Thread */}
+                  <div>
+                    <h4 className="font-semibold text-gray-800 text-xl mb-4">📧 Email Thread</h4>
+                    <div className="space-y-4">
+                      {getThreadMessages(thread.id).map((msg, idx) => (
+                        <div key={idx} className="relative">
+                          <div className="flex gap-4">
+                            <div className="w-10 h-10 bg-gradient-to-br from-green-400 to-blue-500 rounded-full flex items-center justify-center text-sm text-white font-medium flex-shrink-0">
+                              {msg.sender[0].toUpperCase()}
+                            </div>
+                            <div className="flex-1">
+                              <div className="bg-white rounded-lg p-4 border shadow-sm">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <span className="font-semibold text-sm">{msg.sender}</span>
+                                  <span className="text-xs text-gray-500">{new Date(msg.date).toLocaleString()}</span>
+                                </div>
+                                <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{msg.body}</p>
+                              </div>
+                            </div>
+                          </div>
+                          {/* Connecting line */}
+                          {idx < getThreadMessages(thread.id).length - 1 && (
+                            <div className="absolute left-5 top-12 w-0.5 h-8 bg-gray-300"></div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
 
-               {/* Right Section - AI Reply Console with Everything */}
-               <div className="w-1/2 overflow-y-auto custom-scrollbar">
-                 <div className="p-6 h-full flex flex-col">
-                   <h4 className="font-semibold text-gray-800 text-xl mb-4">🤖 AI Reply Console</h4>
-                   
-                   {/* AI Summary */}
-                   <div className="mb-4">
-                     <h5 className="font-semibold text-gray-700 mb-2 text-sm">📝 Summary</h5>
-                     <div className="bg-gray-50 rounded-lg p-3 border">
-                       <p className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">{thread.summary || 'No summary available.'}</p>
-                     </div>
-                   </div>
+                  {/* Reply Draft - Bottom of left section */}
+                  {reply && (
+                    <div className="border-t pt-6">
+                      <h4 className="font-semibold text-gray-800 text-xl mb-4">✉️ Reply Draft</h4>
+                      <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                        <Textarea
+                          value={isEditing ? editedReply : reply}
+                          onChange={(e) => onChangeReply?.(e.target.value)}
+                          className="resize-none w-full text-base leading-relaxed focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white min-h-[300px]"
+                          placeholder={isEditing ? "Edit your reply here..." : "AI-generated reply"}
+                          readOnly={!isEditing}
+                          style={{ cursor: isEditing ? 'text' : 'default' }}
+                        />
+                        
+                        {/* Improvement chat interface */}
+                        {showImproveChat && (
+                          <div className="mt-4 border-t pt-3 space-y-3">
+                            <div className="flex gap-2">
+                              <Textarea
+                                value={chatInput}
+                                onChange={e => setChatInput(e.target.value)}
+                                onKeyDown={e => { 
+                                  if (e.key === 'Enter' && !e.shiftKey) { 
+                                    e.preventDefault(); 
+                                    if (!isStreaming) handleChatSend(); 
+                                  } 
+                                }}
+                                className="flex-1 resize-none text-sm"
+                                placeholder="e.g., 'Make it more formal', 'Add details about timeline'..."
+                                rows={2}
+                                disabled={isStreaming}
+                              />
+                              <button 
+                                className="bg-purple-600 text-white px-4 py-2 rounded font-semibold hover:bg-purple-700 transition disabled:opacity-50 disabled:cursor-not-allowed" 
+                                onClick={handleChatSend}
+                                disabled={isStreaming || !chatInput.trim()}
+                              >
+                                {isStreaming ? 'Improving...' : 'Improve'}
+                              </button>
+                            </div>
+                            
+                            {isStreaming && (
+                              <div className="text-xs text-purple-600 flex items-center gap-1">
+                                <div className="animate-pulse w-1.5 h-1.5 bg-purple-500 rounded-full"></div>
+                                <span>Generating improved version...</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        
+                        {/* Action buttons */}
+                        <div className="flex gap-2 mt-4 flex-wrap">
+                          {isEditing ? (
+                            <>
+                              <button 
+                                className="bg-green-600 text-white px-4 py-2 rounded font-semibold hover:bg-green-700 transition"
+                                onClick={() => onAction('edit')}
+                              >
+                                ✅ Save Changes
+                              </button>
+                              <button 
+                                className="bg-gray-500 text-white px-4 py-2 rounded font-semibold hover:bg-gray-600 transition"
+                                onClick={() => onAction('cancel_edit')}
+                              >
+                                Cancel
+                              </button>
+                              <button 
+                                className="bg-purple-600 text-white px-3 py-2 rounded font-semibold hover:bg-purple-700 transition text-sm"
+                                onClick={() => setShowImproveChat(!showImproveChat)}
+                              >
+                                ✨ Improve with AI
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button 
+                                className="bg-yellow-600 text-white px-4 py-2 rounded font-semibold hover:bg-yellow-700 transition"
+                                onClick={() => onAction('edit')}
+                              >
+                                ✏️ Edit Reply
+                              </button>
+                              <button 
+                                className="bg-purple-600 text-white px-3 py-2 rounded font-semibold hover:bg-purple-700 transition text-sm"
+                                onClick={() => setShowImproveChat(!showImproveChat)}
+                              >
+                                ✨ Improve with AI
+                              </button>
+                              {hasStreamedReply && !streamingReply.startsWith('❌') && (
+                                <button 
+                                  className="bg-green-600 text-white px-3 py-2 rounded font-semibold hover:bg-green-700 transition text-sm"
+                                  onClick={handleAcceptImprovement}
+                                >
+                                  ✅ Accept Improvement
+                                </button>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
 
-                   {/* AI Reply - Takes up most of the space */}
-                   {reply && (
-                     <div className="flex-1 flex flex-col">
-                       <h5 className="font-semibold text-gray-700 mb-2 text-sm">✉️ Reply Draft</h5>
-                       
-                       <div className="bg-blue-50 rounded-lg p-4 border border-blue-200 flex-1 flex flex-col">
-                         {/* Very large text area that fills available space */}
-                         <Textarea
-                           value={isEditing ? editedReply : reply}
-                           onChange={(e) => onChangeReply?.(e.target.value)}
-                           className="resize-none flex-1 w-full text-base leading-relaxed focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white min-h-[300px]"
-                           placeholder={isEditing ? "Edit your reply here..." : "AI-generated reply"}
-                           readOnly={!isEditing}
-                           style={{ cursor: isEditing ? 'text' : 'default' }}
-                         />
-                         
-                         {/* Improvement chat interface */}
-                         {showImproveChat && (
-                           <div className="mt-4 border-t pt-3 space-y-3">
-                             <div className="flex gap-2">
-                               <Textarea
-                                 value={chatInput}
-                                 onChange={e => setChatInput(e.target.value)}
-                                 onKeyDown={e => { 
-                                   if (e.key === 'Enter' && !e.shiftKey) { 
-                                     e.preventDefault(); 
-                                     if (!isStreaming) handleChatSend(); 
-                                   } 
-                                 }}
-                                 className="flex-1 resize-none text-sm"
-                                 placeholder="e.g., 'Make it more formal', 'Add details about timeline'..."
-                                 rows={2}
-                                 disabled={isStreaming}
-                               />
-                               <button 
-                                 className="bg-purple-600 text-white px-4 py-2 rounded font-semibold hover:bg-purple-700 transition disabled:opacity-50 disabled:cursor-not-allowed" 
-                                 onClick={handleChatSend}
-                                 disabled={isStreaming || !chatInput.trim()}
-                               >
-                                 {isStreaming ? 'Improving...' : 'Improve'}
-                               </button>
-                             </div>
-                             
-                             {/* Show streaming improvement directly in the textarea above */}
-                             {isStreaming && (
-                               <div className="text-xs text-purple-600 flex items-center gap-1">
-                                 <div className="animate-pulse w-1.5 h-1.5 bg-purple-500 rounded-full"></div>
-                                 <span>Generating improved version...</span>
-                               </div>
-                             )}
-                           </div>
-                         )}
-                         
-                         {/* Action buttons */}
-                         <div className="flex gap-2 mt-4 flex-wrap">
-                           {isEditing ? (
-                             <>
-                               <button 
-                                 className="bg-green-600 text-white px-4 py-2 rounded font-semibold hover:bg-green-700 transition"
-                                 onClick={() => onAction('edit')}
-                               >
-                                 ✅ Save Changes
-                               </button>
-                               <button 
-                                 className="bg-gray-500 text-white px-4 py-2 rounded font-semibold hover:bg-gray-600 transition"
-                                 onClick={() => onAction('cancel_edit')}
-                               >
-                                 Cancel
-                               </button>
-                               <button 
-                                 className="bg-purple-600 text-white px-3 py-2 rounded font-semibold hover:bg-purple-700 transition text-sm"
-                                 onClick={() => setShowImproveChat(!showImproveChat)}
-                               >
-                                 ✨ Improve with AI
-                               </button>
-                             </>
-                           ) : (
-                             <>
-                               <button 
-                                 className="bg-yellow-600 text-white px-4 py-2 rounded font-semibold hover:bg-yellow-700 transition"
-                                 onClick={() => onAction('edit')}
-                               >
-                                 ✏️ Edit Reply
-                               </button>
-                               <button 
-                                 className="bg-purple-600 text-white px-3 py-2 rounded font-semibold hover:bg-purple-700 transition text-sm"
-                                 onClick={() => setShowImproveChat(!showImproveChat)}
-                               >
-                                 ✨ Improve with AI
-                               </button>
-                               {hasStreamedReply && !streamingReply.startsWith('❌') && (
-                                 <button 
-                                   className="bg-green-600 text-white px-3 py-2 rounded font-semibold hover:bg-green-700 transition text-sm"
-                                   onClick={handleAcceptImprovement}
-                                 >
-                                   ✅ Accept Improvement
-                                 </button>
-                               )}
-                             </>
-                           )}
-                         </div>
-                       </div>
-                     </div>
-                   )}
-                 </div>
-               </div>
-             </div>
+              {/* Right Section - Summary + People/Projects */}
+              <div className="w-1/3 overflow-y-auto custom-scrollbar">
+                <div className="p-6 space-y-6">
+                  {/* AI Summary */}
+                  <div>
+                    <h4 className="font-semibold text-gray-800 text-xl mb-4">📝 Summary</h4>
+                    <div className="bg-gray-50 rounded-lg p-4 border">
+                      <p className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">{thread.summary || 'No summary available.'}</p>
+                    </div>
+                  </div>
+
+                  {/* People */}
+                  <div>
+                    <h4 className="font-semibold text-gray-800 text-lg mb-3">👥 People</h4>
+                    <div className="space-y-3">
+                      {mockPeople.filter(person => thread.participants.includes(person.email)).map((person) => (
+                        <Card key={person.id} className="p-3">
+                          <div className="flex items-start gap-3">
+                            <Avatar className="w-8 h-8">
+                              <div className="w-full h-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center text-xs text-white font-medium">
+                                {person.name[0].toUpperCase()}
+                              </div>
+                            </Avatar>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-sm truncate">{person.name}</p>
+                              <p className="text-xs text-gray-500 truncate">{person.email}</p>
+                              {person.company && (
+                                <p className="text-xs text-gray-600">{person.company} · {person.role}</p>
+                              )}
+                              {person.notes && (
+                                <p className="text-xs text-gray-500 mt-1">{person.notes}</p>
+                              )}
+                            </div>
+                          </div>
+                        </Card>
+                      ))}
+                      {mockPeople.filter(person => thread.participants.includes(person.email)).length === 0 && (
+                        <p className="text-xs text-gray-500">No people found.</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Projects */}
+                  <div>
+                    <h4 className="font-semibold text-gray-800 text-lg mb-3">📋 Projects</h4>
+                    <div className="space-y-3">
+                      {mockProjects.filter(project => {
+                        const relatedPeople = mockPeople.filter(person => thread.participants.includes(person.email));
+                        return project.participants.some(pid => relatedPeople.find(rp => rp.id === pid));
+                      }).map((project) => (
+                        <Card key={project.id} className="p-3">
+                          <h5 className="font-medium text-sm">{project.name}</h5>
+                          <p className="text-xs text-gray-600 mt-1">{project.description}</p>
+                          <Badge className="mt-2 text-xs" variant="outline">
+                            {project.status}
+                          </Badge>
+                        </Card>
+                      ))}
+                      {mockProjects.filter(project => {
+                        const relatedPeople = mockPeople.filter(person => thread.participants.includes(person.email));
+                        return project.participants.some(pid => relatedPeople.find(rp => rp.id === pid));
+                      }).length === 0 && (
+                        <p className="text-xs text-gray-500">No projects found.</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reject Dialog */}
+      {showRejectDialog && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+            <div className="p-6">
+              <h3 className="text-lg font-bold mb-4">Reject Thread</h3>
+              <p className="text-gray-600 mb-6">How would you like to handle this rejected thread?</p>
+              
+              <div className="flex flex-col gap-3">
+                <button
+                  onClick={() => {
+                    setShowRejectDialog(false);
+                    onAction('reject_archive');
+                  }}
+                  className="bg-red-600 text-white px-4 py-3 rounded font-semibold hover:bg-red-700 transition text-left"
+                >
+                  🗄️ Archive Only
+                  <div className="text-sm text-red-100 mt-1">Just reject and archive the thread</div>
+                </button>
+                
+                <button
+                  onClick={() => {
+                    setShowRejectDialog(false);
+                    onAction('reject_with_kb');
+                  }}
+                  className="bg-orange-600 text-white px-4 py-3 rounded font-semibold hover:bg-orange-700 transition text-left"
+                >
+                  📚 Save to Knowledge Base & Archive
+                  <div className="text-sm text-orange-100 mt-1">Extract useful information before archiving</div>
+                </button>
+              </div>
+
+              <div className="flex gap-2 mt-6">
+                <button
+                  onClick={() => setShowRejectDialog(false)}
+                  className="flex-1 bg-gray-500 text-white px-4 py-2 rounded font-semibold hover:bg-gray-600 transition"
+                >
+                  Cancel
+                </button>
+              </div>
+
+              {/* Auto-save KB preference toggle */}
+              <div className="mt-4 pt-4 border-t">
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={autoSaveKB}
+                    onChange={(e) => {
+                      setAutoSaveKB(e.target.checked);
+                      localStorage.setItem('auto_save_kb', e.target.checked.toString());
+                    }}
+                    className="rounded"
+                  />
+                  <span>Auto-save to Knowledge Base when approving (swipe right)</span>
+                </label>
+              </div>
+            </div>
           </div>
         </div>
       )}
