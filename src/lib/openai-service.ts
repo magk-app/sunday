@@ -317,6 +317,89 @@ Tasks:
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
   }
+
+  /**
+   * Improve an AI reply based on user suggestions
+   */
+  async improveReply(originalReply: string, userSuggestion: string, threadContext?: string): Promise<OpenAIResponse<string>> {
+    try {
+      const prompt = `You are an AI assistant helping to improve email replies. The user has suggested an improvement to the current draft.
+
+Original Reply:
+${originalReply}
+
+User Suggestion:
+${userSuggestion}
+
+${threadContext ? `Thread Context:\n${threadContext}\n` : ''}
+
+Please provide an improved version of the reply that incorporates the user's suggestion while maintaining a professional tone and appropriate context. Keep the core message but enhance it based on the feedback.
+
+Improved Reply:`;
+
+      const model = 'gpt-4o';
+      const data = await this.makeRequest('/chat/completions', {
+        model,
+        messages: [
+          { 
+            role: 'system', 
+            content: 'You are an expert email assistant that improves drafts based on user feedback. Maintain professionalism while incorporating suggestions.' 
+          },
+          { role: 'user', content: prompt },
+        ],
+        max_tokens: 480,
+        temperature: 0.7,
+      });
+
+      const improvedReply = data.choices?.[0]?.message?.content?.trim() || '';
+      const isSafe = await this.isContentSafe(improvedReply);
+      const reply = isSafe ? improvedReply : '⚠️ Improved reply removed due to safety flags.';
+      const cost = this.calculateCost(data.usage, model);
+
+      console.log('[OpenAIService] Generated improved reply:', reply);
+
+      return {
+        success: true,
+        data: reply,
+        usage: {
+          tokens: data.usage.total_tokens,
+          cost,
+          operation: 'generate_reply',
+        },
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  }
+
+  /**
+   * Simulate streaming for improved reply (for now, until we implement real streaming)
+   */
+  async *improveReplyStream(originalReply: string, userSuggestion: string, threadContext?: string): AsyncGenerator<string, void, unknown> {
+    // First get the full improved reply
+    const result = await this.improveReply(originalReply, userSuggestion, threadContext);
+    
+    if (!result.success || !result.data) {
+      yield result.error || 'Failed to improve reply';
+      return;
+    }
+
+    const fullReply = result.data;
+    const words = fullReply.split(' ');
+    
+    // Simulate streaming by yielding words with realistic delays
+    let currentText = '';
+    for (let i = 0; i < words.length; i++) {
+      currentText += (i > 0 ? ' ' : '') + words[i];
+      yield currentText;
+      
+      // Add realistic delays between words (50-150ms)
+      await new Promise(resolve => setTimeout(resolve, Math.random() * 100 + 50));
+    }
+  }
 }
 
 export const openaiService = new OpenAIService(); 

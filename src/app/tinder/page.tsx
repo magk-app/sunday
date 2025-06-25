@@ -1,5 +1,5 @@
 'use client';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { mockThreads, mockDraftReplies, getThreadMessages } from '../../mock/threads';
 import TinderThreadCard from '../../components/TinderThreadCard';
 import { Button } from '../../components/ui/button';
@@ -69,6 +69,13 @@ export default function TinderViewPage() {
   const [showCelebration, setShowCelebration] = useState(false);
   const [loadingAI, setLoadingAI] = useState(false);
   const [aiProgress, setAIProgress] = useState(0);
+  const [resetting, setResetting] = useState(false);
+  const [showExpand, setShowExpand] = useState(false);
+  const [showImprove, setShowImprove] = useState(false);
+  const [jumpTarget, setJumpTarget] = useState<'summary'|'reply'|'edit'>('summary');
+
+  // Refs for scrolling
+  const cardAreaRef = useRef<HTMLDivElement>(null);
 
   if (threads.length === 0) return <div className="p-6">No threads.</div>;
 
@@ -93,7 +100,7 @@ export default function TinderViewPage() {
     });
   };
 
-  const handleAction = async (action: 'approve' | 'reject' | 'edit' | 'save_kb') => {
+  const handleAction = async (action: 'approve' | 'reject' | 'edit' | 'save_kb' | 'cancel_edit') => {
     const current = threads[index];
     if (!current) return;
     if (action === 'approve' || action === 'reject') {
@@ -125,112 +132,121 @@ export default function TinderViewPage() {
       }
       setIsProcessing(false);
     } else if (action === 'edit') {
-      setIsEditing(true);
-      setEditedReply(currentDraft?.body || '');
-      return;
+      if (isEditing) {
+        // Save the edit
+        if (currentDraft && editedReply) {
+          updateDraft({ body: editedReply, updated_at: new Date() });
+          setNotification('Reply updated successfully!');
+        }
+        setIsEditing(false);
+      } else {
+        // Enter edit mode
+        setIsEditing(true);
+        setEditedReply(currentDraft?.body || '');
+        setJumpTarget('edit');
+      }
+    } else if (action === 'cancel_edit') {
+      setIsEditing(false);
+      setEditedReply('');
+    }
+  };
+
+  const handleChangeReply = (newReply: string) => {
+    setEditedReply(newReply);
+    // Also update the draft immediately for streaming improvements
+    if (currentDraft) {
+      updateDraft({ body: newReply, updated_at: new Date() });
     }
   };
 
   const movePrev = () => setIndex((i) => Math.max(i - 1, 0));
   const moveNext = () => setIndex((i) => Math.min(i + 1, threads.length - 1));
 
-  // On initial mount: generate detailed summary & reply if missing
+  // Only generate AI for the current thread on start
   useEffect(() => {
-    const generateForThreads = async () => {
-      setIsProcessing(true);
-      const updatedThreads = [...threads];
-      const updatedDrafts = [...drafts];
-
-      for (const t of updatedThreads) {
+    if (!showSplash && threads.length > 0) {
+      const t = threads[index];
+      if (!t.summary || !drafts.find(d => d.thread_id === t.id && d.status === 'pending')) {
+        setLoadingAI(true);
         const messages = getThreadMessages(t.id);
-
-        // Detailed summary
-        if (!t.summary) {
-          const resSum = await openaiService.summarizeThread(t, messages, true);
-          if (resSum.success && resSum.data) {
-            t.summary = resSum.data;
+        (async () => {
+          let updatedThreads = [...threads];
+          let updatedDrafts = [...drafts];
+          // Generate summary if missing
+          if (!t.summary) {
+            const resSum = await openaiService.summarizeThread(t, messages, true);
+            if (resSum.success && resSum.data) {
+              updatedThreads[index].summary = resSum.data;
+            }
           }
-        }
-
-        // Generate reply if no pending draft
-        const existingDraft = updatedDrafts.find(d => d.thread_id === t.id && d.status === 'pending');
-        if (!existingDraft) {
-          const resRep = await openaiService.generateReply(t, messages);
-          if (resRep.success && resRep.data) {
-            const newDraft: DraftReply = {
-              id: `draft_${Date.now()}_${Math.random().toString(36).slice(2)}`,
-              thread_id: t.id,
-              user_id: 'user_jack',
-              body: resRep.data,
-              generated_at: new Date(),
-              status: 'pending' as const,
-              created_at: new Date(),
-              updated_at: new Date(),
-            };
-            updatedDrafts.push(newDraft);
-            t.has_draft = true;
+          // Generate reply if missing
+          const existingDraft = updatedDrafts.find(d => d.thread_id === t.id && d.status === 'pending');
+          if (!existingDraft) {
+            const resRep = await openaiService.generateReply(t, messages);
+            if (resRep.success && resRep.data) {
+              const newDraft: DraftReply = {
+                id: `draft_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+                thread_id: t.id,
+                user_id: 'user_jack',
+                body: resRep.data,
+                generated_at: new Date(),
+                status: 'pending' as const,
+                created_at: new Date(),
+                updated_at: new Date(),
+              };
+              updatedDrafts.push(newDraft);
+              updatedThreads[index].has_draft = true;
+            }
           }
-        }
+          setThreads(updatedThreads);
+          setDrafts(updatedDrafts);
+          saveThreads(updatedThreads);
+          saveDrafts(updatedDrafts);
+          setLoadingAI(false);
+          // Preload next thread in background
+          if (index + 1 < threads.length) {
+            const next = updatedThreads[index + 1];
+            const nextMessages = getThreadMessages(next.id);
+            if (!next.summary) {
+              openaiService.summarizeThread(next, nextMessages, true).then(resSum => {
+                if (resSum.success && resSum.data) {
+                  const tCopy = [...updatedThreads];
+                  tCopy[index + 1].summary = resSum.data;
+                  setThreads(tCopy);
+                  saveThreads(tCopy);
+                }
+              });
+            }
+            const nextDraft = updatedDrafts.find(d => d.thread_id === next.id && d.status === 'pending');
+            if (!nextDraft) {
+              openaiService.generateReply(next, nextMessages).then(resRep => {
+                if (resRep.success && resRep.data) {
+                  const newDraft: DraftReply = {
+                    id: `draft_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+                    thread_id: next.id,
+                    user_id: 'user_jack',
+                    body: resRep.data,
+                    generated_at: new Date(),
+                    status: 'pending' as const,
+                    created_at: new Date(),
+                    updated_at: new Date(),
+                  };
+                  const dCopy = [...updatedDrafts, newDraft];
+                  setDrafts(dCopy);
+                  saveDrafts(dCopy);
+                  const tCopy = [...updatedThreads];
+                  tCopy[index + 1].has_draft = true;
+                  setThreads(tCopy);
+                  saveThreads(tCopy);
+                }
+              });
+            }
+          }
+        })();
       }
-
-      setThreads(updatedThreads);
-      setDrafts(updatedDrafts);
-      saveThreads(updatedThreads);
-      saveDrafts(updatedDrafts);
-      setIsProcessing(false);
-    };
-
-    // Only run if no summaries or drafts in localStorage (first load)
-    if (threads.some(t => !t.summary) || threads.some(t => !drafts.find(d => d.thread_id === t.id))) {
-      generateForThreads();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Preload/generate summary and reply for next card
-  useEffect(() => {
-    const preloadNext = async () => {
-      const nextIdx = index + 1;
-      if (nextIdx >= threads.length) return;
-      const t = threads[nextIdx];
-      const messages = getThreadMessages(t.id);
-      let updated = false;
-      if (!t.summary) {
-        const resSum = await openaiService.summarizeThread(t, messages, true);
-        if (resSum.success && resSum.data) {
-          t.summary = resSum.data;
-          updated = true;
-        }
-      }
-      const existingDraft = drafts.find(d => d.thread_id === t.id && d.status === 'pending');
-      if (!existingDraft) {
-        const resRep = await openaiService.generateReply(t, messages);
-        if (resRep.success && resRep.data) {
-          const newDraft: DraftReply = {
-            id: `draft_${Date.now()}_${Math.random().toString(36).slice(2)}`,
-            thread_id: t.id,
-            user_id: 'user_jack',
-            body: resRep.data,
-            generated_at: new Date(),
-            status: 'pending' as const,
-            created_at: new Date(),
-            updated_at: new Date(),
-          };
-          setDrafts((prev) => [...prev, newDraft]);
-          t.has_draft = true;
-          updated = true;
-        }
-      }
-      if (updated) {
-        setThreads([...threads]);
-        saveThreads(threads);
-        saveDrafts(drafts);
-        setNotification('AI summary and reply generated for next email');
-      }
-    };
-    preloadNext();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [index]);
+  }, [showSplash, index]);
 
   const thread = threads[index];
 
@@ -255,132 +271,261 @@ export default function TinderViewPage() {
 
   // When all cards are processed, show celebration
   useEffect(() => {
-    if (index >= threads.length) {
+    const allProcessed = threads.every(t => t.__handled === true);
+    if (allProcessed && threads.length > 0 && !showSplash && processedCount > 0) {
       setShowCelebration(true);
     }
-  }, [index, threads.length]);
+  }, [threads, showSplash, processedCount]);
 
   // Ensure all threads start with status 'pending' unless already set
   useEffect(() => {
-    setThreads(prev => prev.map(t => ({ ...t, status: t.status || 'pending' })));
+    setThreads(prev => prev.map(t => ({ ...t, status: t.status || 'pending', __handled: t.__handled || false })));
   }, []);
 
-  const handleGetStarted = async () => {
-    setLoadingAI(true);
-    let updatedThreads = [...threads];
-    let updatedDrafts = [...drafts];
-    let completed = 0;
-    for (let i = 0; i < updatedThreads.length; i++) {
-      const t = updatedThreads[i];
-      const messages = getThreadMessages(t.id);
-      // Generate summary if missing
-      if (!t.summary) {
-        const resSum = await openaiService.summarizeThread(t, messages, true);
-        if (resSum.success && resSum.data) {
-          t.summary = resSum.data;
-        }
-      }
-      // Generate reply if no pending draft
-      const existingDraft = updatedDrafts.find(d => d.thread_id === t.id && d.status === 'pending');
-      if (!existingDraft) {
-        const resRep = await openaiService.generateReply(t, messages);
-        if (resRep.success && resRep.data) {
-          const newDraft: DraftReply = {
-            id: `draft_${Date.now()}_${Math.random().toString(36).slice(2)}`,
-            thread_id: t.id,
-            user_id: 'user_jack',
-            body: resRep.data,
-            generated_at: new Date(),
-            status: 'pending' as const,
-            created_at: new Date(),
-            updated_at: new Date(),
-          };
-          updatedDrafts.push(newDraft);
-          t.has_draft = true;
-        }
-      }
-      completed++;
-      setAIProgress(Math.round((completed / updatedThreads.length) * 100));
-    }
-    setThreads(updatedThreads);
-    setDrafts(updatedDrafts);
-    saveThreads(updatedThreads);
-    saveDrafts(updatedDrafts);
-    setLoadingAI(false);
-    setShowSplash(false);
+  // Reset simulation logic
+  const handleReset = () => {
+    setResetting(true);
+    let resetThreads = threads.map(t => ({ ...t, status: 'pending' as EmailThread['status'], has_draft: true, __handled: false }));
+    let resetDrafts = drafts.map(d => ({ ...d, status: 'pending' as DraftReply['status'] }));
+    setThreads(resetThreads);
+    setDrafts(resetDrafts);
+    saveThreads(resetThreads);
+    saveDrafts(resetDrafts);
+    setIndex(0);
+    setProcessedCount(0);
+    setTimeSaved(0);
+    setShowCelebration(false);
+    setResetting(false);
+    setNotification('Simulation reset!');
+    setShowSplash(true);
+    // Sync with main app by dispatching storage event
+    window.dispatchEvent(new Event('storage'));
   };
+
+  // Sync status changes with main app
+  useEffect(() => {
+    window.dispatchEvent(new Event('storage'));
+  }, [threads, drafts]);
 
   if (showSplash) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen">
-        <div className="bg-white rounded-xl shadow-lg p-8 max-w-md text-center animate-fade-in">
-          <h2 className="text-2xl font-bold mb-4">How to Use</h2>
-          <ul className="text-left mb-6 text-gray-700 space-y-2">
-            <li><b>Swipe right</b> to <span className="text-green-600 font-semibold">approve</span></li>
-            <li><b>Swipe left</b> to <span className="text-red-600 font-semibold">reject</span></li>
-            <li><b>Swipe up</b> to <span className="text-blue-600 font-semibold">save to knowledge base</span></li>
-            <li><b>Swipe down</b> to <span className="text-yellow-600 font-semibold">edit the suggestion</span></li>
-          </ul>
+      <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
+        <div className="bg-white rounded-2xl shadow-2xl p-10 max-w-lg text-center animate-fade-in border border-gray-100">
+          <div className="text-7xl mb-6 animate-bounce">📧</div>
+          <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+            Tinder for Emails
+          </h1>
+          <p className="text-gray-600 mb-8 text-lg">Process your emails like a pro</p>
+          
+          <div className="bg-gray-50 rounded-xl p-6 mb-8">
+            <h2 className="text-xl font-semibold mb-4 text-gray-800">How to Swipe</h2>
+            <div className="space-y-4 text-left">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">👉</span>
+                <span><b>Swipe right</b> to <span className="text-green-600 font-semibold">approve & send</span></span>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">👈</span>
+                <span><b>Swipe left</b> to <span className="text-red-600 font-semibold">reject & archive</span></span>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">👆</span>
+                <span><b>Swipe up</b> to <span className="text-blue-600 font-semibold">save to knowledge base</span></span>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">👇</span>
+                <span><b>Swipe down</b> to <span className="text-yellow-600 font-semibold">edit the AI reply</span></span>
+              </div>
+            </div>
+          </div>
+          
           {loadingAI ? (
-            <div className="flex flex-col items-center gap-2 mt-4">
-              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-600 mb-2" />
-              <div className="text-blue-700 font-semibold">Generating AI for all emails... {aiProgress}%</div>
+            <div className="flex flex-col items-center gap-4 mt-6">
+              <div className="relative">
+                <div className="animate-spin rounded-full h-12 w-12 border-t-3 border-b-3 border-blue-600"></div>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-xl">🤖</span>
+                </div>
+              </div>
+              <div className="text-blue-700 font-semibold text-lg">Generating AI for all emails...</div>
+              <div className="text-gray-500 text-sm">{aiProgress}% complete</div>
             </div>
           ) : (
-            <button className="bg-blue-600 text-white px-6 py-2 rounded-full font-semibold shadow hover:bg-blue-700 transition" onClick={handleGetStarted}>Get Started</button>
+            <button 
+              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-8 py-4 rounded-full font-bold text-xl shadow-lg transform hover:scale-105 transition-all duration-200 flex items-center gap-3 mx-auto"
+              onClick={() => setShowSplash(false)}
+            >
+              <span>🚀</span>
+              Let's Process Some Emails!
+            </button>
           )}
+          
+          <div className="mt-8 text-gray-400 text-sm">
+            ✨ Powered by AI • Built with care
+          </div>
         </div>
       </div>
     );
   }
   if (showCelebration) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 to-purple-100 animate-fade-in">
-        {/* Confetti animation placeholder */}
-        <div className="absolute inset-0 pointer-events-none z-0">
-          {/* TODO: Add confetti animation here */}
+      <div className="fixed inset-0 bg-gradient-to-br from-purple-400 via-pink-500 to-red-500 z-50 flex flex-col items-center justify-center">
+        {/* CSS Confetti Animation */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          {Array.from({ length: 50 }).map((_, i) => (
+            <div
+              key={i}
+              className="absolute w-2 h-2 bg-yellow-300 opacity-80 animate-bounce"
+              style={{
+                left: `${Math.random() * 100}%`,
+                top: `${Math.random() * 100}%`,
+                animationDelay: `${Math.random() * 2}s`,
+                animationDuration: `${2 + Math.random() * 2}s`,
+                transform: `rotate(${Math.random() * 360}deg)`
+              }}
+            />
+          ))}
+          {Array.from({ length: 30 }).map((_, i) => (
+            <div
+              key={`circle-${i}`}
+              className="absolute w-3 h-3 bg-blue-300 rounded-full opacity-70 animate-ping"
+              style={{
+                left: `${Math.random() * 100}%`,
+                top: `${Math.random() * 100}%`,
+                animationDelay: `${Math.random() * 3}s`,
+                animationDuration: `${1.5 + Math.random() * 2}s`
+              }}
+            />
+          ))}
         </div>
-        <div className="bg-white rounded-xl shadow-lg p-8 max-w-md text-center z-10">
-          <h2 className="text-3xl font-bold mb-4">All done!</h2>
-          <p className="mb-6 text-lg text-gray-700">You've processed all your emails. 🎉</p>
-          <button className="bg-blue-600 text-white px-6 py-2 rounded-full font-semibold shadow hover:bg-blue-700 transition" onClick={() => window.location.href = '/'}>Return to Main App</button>
+        
+        {/* Main content */}
+        <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-2xl p-8 max-w-md text-center z-10 border border-white/20">
+          <div className="text-6xl mb-4">🎉</div>
+          <h2 className="text-4xl font-bold mb-6 text-gray-800">All Done!</h2>
+          <p className="mb-6 text-lg text-gray-700">You've processed all your emails like a champion! 🚀</p>
+          
+          <div className="flex justify-center gap-8 mb-6">
+            <div className="text-center">
+              <div className="text-3xl font-bold text-purple-600">{processedCount}</div>
+              <div className="text-sm text-gray-600">Cards Processed</div>
+            </div>
+            <div className="text-center">
+              <div className="text-3xl font-bold text-green-600">{timeSaved}</div>
+              <div className="text-sm text-gray-600">Minutes Saved</div>
+            </div>
+          </div>
+          
+          <div className="flex flex-col gap-3">
+            <Button 
+              onClick={handleReset}
+              className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold py-3 px-6 rounded-full shadow-lg transform hover:scale-105 transition-all duration-200"
+            >
+              🎊 Celebrate Again
+            </Button>
+            <Button 
+              variant="outline" 
+              onClick={() => { setShowCelebration(false); setShowSplash(true); }}
+              className="border-2 border-gray-400 hover:border-gray-600 font-semibold py-3 px-6 rounded-full"
+            >
+              Return to Main App
+            </Button>
+          </div>
+          
+          <div className="mt-6 text-2xl animate-bounce">✨ You crushed it! ✨</div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="p-6 flex flex-col items-center gap-6">
-      {/* Top bar for processed count and time saved */}
+    <div className="p-6 flex flex-col items-center gap-6 relative">
+      {/* Header stats with proper spacing */}
       <div className="w-full max-w-xl flex justify-between items-center mb-4">
         <span className="text-sm text-gray-700 font-medium">Processed: {processedCount}</span>
-        <span className="text-sm text-gray-700 font-medium">Time Saved: {timeSaved} min</span>
+        <span className="text-sm text-gray-700 font-medium ml-8">Time Saved: {timeSaved} min</span>
+        <button 
+          className="ml-auto bg-gray-200 text-gray-700 px-3 py-1 rounded-full text-xs font-semibold hover:bg-gray-300 transition disabled:opacity-50" 
+          onClick={handleReset} 
+          disabled={resetting}
+        >
+          {resetting ? 'Resetting...' : 'Reset Simulation'}
+        </button>
       </div>
-      {/* Card */}
-      {threads[index] && (
-        <TinderThreadCard
-          key={threads[index].id}
-          thread={threads[index]}
-          reply={drafts.find(d => d.thread_id === threads[index].id && d.status === 'pending')?.body}
-          isEditing={isEditing}
-          editedReply={editedReply}
-          onChangeReply={setEditedReply}
-          onAction={handleAction}
-        />
-      )}
+      
+      {/* Minimalistic vertical dot nav on left of card area */}
+      <div className="absolute left-8 top-1/2 -translate-y-1/2 flex flex-col gap-6 z-20">
+        {['summary', 'reply', 'edit'].map((section) => (
+          <button
+            key={section}
+            className={`w-3 h-3 rounded-full transition-all duration-300 ${
+              jumpTarget === section 
+                ? 'bg-white shadow-lg border-2 border-blue-500 scale-125' 
+                : 'bg-white/70 hover:bg-white hover:scale-110 shadow-md border border-gray-200'
+            } group relative`}
+            onClick={() => setJumpTarget(section as 'summary'|'reply'|'edit')}
+            aria-label={`Jump to ${section}`}
+          >
+            {/* Tooltip on hover */}
+            <span className="absolute left-6 top-1/2 -translate-y-1/2 text-xs bg-black text-white px-2 py-1 rounded shadow opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap pointer-events-none">
+              {section.charAt(0).toUpperCase() + section.slice(1)}
+            </span>
+          </button>
+        ))}
+      </div>
+      
+      {/* Card area */}
+      <div ref={cardAreaRef} className="w-full max-w-xl mx-auto">
+        {threads[index] && (
+          <TinderThreadCard
+            key={threads[index].id}
+            thread={threads[index]}
+            reply={drafts.find(d => d.thread_id === threads[index].id && d.status === 'pending')?.body}
+            isEditing={isEditing}
+            editedReply={editedReply}
+            onChangeReply={handleChangeReply}
+            onAction={handleAction}
+            showExpand={showExpand}
+            setShowExpand={setShowExpand}
+            showImprove={showImprove}
+            setShowImprove={setShowImprove}
+            jumpTarget={jumpTarget}
+            setJumpTarget={setJumpTarget}
+          />
+        )}
+      </div>
+      
+      {/* Fixed footer action bar with proper buttons */}
+      <div className="fixed bottom-0 left-0 w-full flex justify-center items-center bg-white border-t py-4 z-30 gap-4 shadow-lg">
+        <button 
+          className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold transition-all duration-200 shadow-md hover:shadow-lg" 
+          onClick={() => setShowExpand(true)}
+        >
+          📧 Expand Thread
+        </button>
+        <button 
+          className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-semibold transition-all duration-200 shadow-md hover:shadow-lg" 
+          onClick={() => { setShowImprove(true); setJumpTarget('reply'); }}
+        >
+          ✨ Add Improvement
+        </button>
+      </div>
+      
       {/* Card counter */}
       {threads.length > 0 && !showCelebration && (
         <div className="mt-4 text-gray-500 text-sm font-medium">{cardCount}</div>
       )}
+      
       {isEditing && (
         <div className="mt-4 flex gap-2">
           <Button onClick={handleSaveEditedReply}>Save</Button>
           <Button variant="outline" onClick={() => setIsEditing(false)}>Cancel</Button>
         </div>
       )}
+      
       {/* Notification */}
       {notification && (
-        <div className="fixed top-6 right-6 z-50 px-4 py-2 rounded shadow text-white bg-blue-600">
+        <div className="fixed top-6 right-6 z-50 px-4 py-2 rounded-lg shadow text-white bg-blue-600">
           <span>{notification}</span>
           <button className="ml-4 text-white font-bold" onClick={() => setNotification(null)}>×</button>
         </div>
