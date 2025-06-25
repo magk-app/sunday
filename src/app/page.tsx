@@ -1,78 +1,61 @@
 "use client";
 import React, { useState } from 'react';
-import { mockEmails } from '../mock/emails';
+import { mockThreads, mockDraftReplies, mockPeople, mockProjects, getThreadMessages } from '../mock/threads';
 import Sidebar from '../components/Sidebar';
 import Header from '../components/Header';
-import EmailList from '../components/EmailList';
-import EmailDetail from '../components/EmailDetail';
-import TaskList from '../components/TaskList';
+import ThreadList from '../components/ThreadList';
+import ThreadDetail from '../components/ThreadDetail';
 import StatusBar from '../components/StatusBar';
 import Notification from '../components/Notification';
-import type { Email, Task } from '../types';
-import { TaskStatus, TaskPriority } from '../types';
-
-// Mock AI task extraction from email body
-function extractTasksFromEmail(email: Email): Task[] {
-  // For demo, extract lines starting with "- [ ]" as tasks
-  const lines = email.body.split('\n');
-  return lines
-    .filter((line) => line.trim().startsWith('- [ ]'))
-    .map((line, idx) => ({
-      id: `${email.id}_task_${idx}`,
-      email_id: email.id,
-      user_id: email.user_id,
-      title: line.replace('- [ ]', '').trim() || 'Untitled Task',
-      description: '',
-      status: TaskStatus.TODO,
-      priority: TaskPriority.MEDIUM,
-      due_date: null,
-      created_at: new Date(),
-      updated_at: new Date(),
-    }));
-}
+import type { EmailThread, DraftReply } from '../types';
 
 type FolderKey = 'inbox' | 'important' | 'approved' | 'rejected';
-const folderFilters: Record<FolderKey, (e: Email) => boolean> = {
-  inbox: (e: Email) => e.status === 'pending',
-  important: (e: Email) => e.importance === 'high',
-  approved: (e: Email) => e.status === 'approved',
-  rejected: (e: Email) => e.status === 'rejected',
-};
 
 export default function HomePage() {
-  const [emails, setEmails] = useState<Email[]>(mockEmails);
-  const [selectedId, setSelectedId] = useState<string | null>(emails[0]?.id || null);
+  const [threads] = useState<EmailThread[]>(mockThreads);
+  const [drafts, setDrafts] = useState<DraftReply[]>(mockDraftReplies);
+  const [selectedThreadId, setSelectedThreadId] = useState<string | null>(threads[0]?.id || null);
   const [selectedFolder, setSelectedFolder] = useState<FolderKey>('inbox');
-  const [tasks, setTasks] = useState<Task[]>([]);
   const [credits, setCredits] = useState<number>(100);
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
-  // Filter emails by folder
-  const filteredEmails = emails.filter(folderFilters[selectedFolder]);
-  const selectedEmail = emails.find((e) => e.id === selectedId) || filteredEmails[0] || null;
+  const selectedThread = threads.find(t => t.id === selectedThreadId) || null;
+  const threadMessages = selectedThread ? getThreadMessages(selectedThread.id) : [];
+  const currentDraft = drafts.find(d => d.thread_id === selectedThreadId && d.status === 'pending') || null;
 
-  // Extract tasks for selected email
-  React.useEffect(() => {
-    if (selectedEmail) {
-      // Simulate API credit usage and mock AI extraction
-      setCredits((c) => c - 1);
-      setTasks(extractTasksFromEmail(selectedEmail));
-    } else {
-      setTasks([]);
-    }
-  }, [selectedEmail]);
+  const handleApprove = (draftId: string) => {
+    setDrafts(prev => prev.map(d => d.id === draftId ? { ...d, status: 'sent', sent_at: new Date() } : d));
+    setNotification({ message: '✨ Reply sent successfully!', type: 'success' });
+    setCredits(c => c - 5); // Deduct credits for sending
+  };
 
-  const handleApprove = (id: string) => {
-    setEmails((prev) => prev.map((e) => e.id === id ? { ...e, status: 'approved' } : e));
-    setNotification({ message: 'Email approved!', type: 'success' });
+  const handleReject = (draftId: string) => {
+    setDrafts(prev => prev.map(d => d.id === draftId ? { ...d, status: 'rejected' } : d));
+    setNotification({ message: 'Draft rejected and archived', type: 'error' });
   };
-  const handleReject = (id: string) => {
-    setEmails((prev) => prev.map((e) => e.id === id ? { ...e, status: 'rejected' } : e));
-    setNotification({ message: 'Email rejected.', type: 'error' });
-  };
-  const handleCompleteTask = (id: string) => {
-    setTasks((prev) => prev.map((t) => t.id === id ? { ...t, status: TaskStatus.COMPLETED } : t));
-    setNotification({ message: 'Task completed!', type: 'success' });
+
+  const handleGenerateReply = async () => {
+    if (!selectedThreadId) return;
+    
+    setCredits(c => c - 2); // Deduct credits for generation
+    setNotification({ message: 'Generating AI reply...', type: 'success' });
+    
+    // Simulate API call
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    const newDraft: DraftReply = {
+      id: `draft_${Date.now()}`,
+      thread_id: selectedThreadId,
+      user_id: 'user_jack',
+      body: `Thank you for your message. I've reviewed the thread and here's my response:\n\n[AI-generated content based on conversation context]\n\nBest regards,\nJack`,
+      generated_at: new Date(),
+      status: 'pending',
+      created_at: new Date(),
+      updated_at: new Date(),
+    };
+    
+    setDrafts(prev => [...prev.filter(d => d.thread_id !== selectedThreadId || d.status !== 'pending'), newDraft]);
+    setNotification({ message: '✨ AI reply generated!', type: 'success' });
   };
 
   const handleSelectFolder = (key: string) => {
@@ -86,13 +69,19 @@ export default function HomePage() {
       <Header />
       <main className="flex flex-1 overflow-hidden">
         <Sidebar selected={selectedFolder} onSelect={handleSelectFolder} />
-        <EmailList emails={filteredEmails} selectedId={selectedId} onSelect={setSelectedId} />
-        <section className="flex-1 p-6 overflow-y-auto">
-          <EmailDetail email={selectedEmail} onApprove={handleApprove} onReject={handleReject} tasks={tasks} />
-          <TaskList tasks={tasks} onComplete={handleCompleteTask} />
-        </section>
+        <ThreadList threads={threads} selectedId={selectedThreadId} onSelect={setSelectedThreadId} />
+        <ThreadDetail
+          thread={selectedThread}
+          messages={threadMessages}
+          draft={currentDraft}
+          people={mockPeople}
+          projects={mockProjects}
+          onApprove={handleApprove}
+          onReject={handleReject}
+          onGenerateReply={handleGenerateReply}
+        />
       </main>
-      <StatusBar status={selectedEmail?.status || 'N/A'} credits={credits} />
+      <StatusBar status={currentDraft?.status || 'Ready'} credits={credits} />
       {notification && (
         <Notification message={notification.message} type={notification.type} onClose={() => setNotification(null)} />
       )}

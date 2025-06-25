@@ -1,0 +1,83 @@
+import React from 'react';
+import type { EmailThread } from '../types';
+import { Card } from './ui/card';
+import { Badge } from './ui/badge';
+import { Avatar } from './ui/avatar';
+
+interface ThreadListProps {
+  threads: EmailThread[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+}
+
+export default function ThreadList({ threads, selectedId, onSelect }: ThreadListProps) {
+  const formatDate = (date: Date) => {
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    const hours = diff / (1000 * 60 * 60);
+    
+    if (hours < 1) return 'Just now';
+    if (hours < 24) return `${Math.floor(hours)}h ago`;
+    if (hours < 168) return `${Math.floor(hours / 24)}d ago`;
+    return date.toLocaleDateString();
+  };
+
+  return (
+    <section className="w-full md:w-96 border-r bg-gray-50 overflow-y-auto">
+      <div className="p-4">
+        <h2 className="text-xl font-bold mb-4 text-gray-900">Conversations</h2>
+        <div className="space-y-2">
+          {threads.map((thread) => (
+            <Card
+              key={thread.id}
+              className={`p-4 cursor-pointer transition-all hover:shadow-md ${
+                selectedId === thread.id ? 'ring-2 ring-blue-500 bg-blue-50' : 'hover:bg-white'
+              }`}
+              onClick={() => onSelect(thread.id)}
+            >
+              <div className="flex items-start justify-between mb-2">
+                <h3 className="font-semibold text-gray-900 line-clamp-1 flex-1 mr-2">
+                  {thread.subject}
+                </h3>
+                <span className="text-xs text-gray-500 whitespace-nowrap">
+                  {formatDate(thread.last_message_at)}
+                </span>
+              </div>
+              
+              <div className="flex items-center gap-2 mb-2">
+                <div className="flex -space-x-2">
+                  {thread.participants.slice(0, 3).map((email, idx) => (
+                    <Avatar key={idx} className="w-6 h-6 border-2 border-white">
+                      <div className="w-full h-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-xs text-white font-medium">
+                        {email[0].toUpperCase()}
+                      </div>
+                    </Avatar>
+                  ))}
+                  {thread.participants.length > 3 && (
+                    <div className="w-6 h-6 rounded-full bg-gray-200 border-2 border-white flex items-center justify-center text-xs text-gray-600">
+                      +{thread.participants.length - 3}
+                    </div>
+                  )}
+                </div>
+                <span className="text-xs text-gray-600">
+                  {thread.message_count} messages
+                </span>
+              </div>
+              
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-gray-600 line-clamp-2 flex-1">
+                  Last message preview would go here...
+                </p>
+                {thread.has_draft && (
+                  <Badge className="ml-2 bg-amber-100 text-amber-800">
+                    Draft
+                  </Badge>
+                )}
+              </div>
+            </Card>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+} 

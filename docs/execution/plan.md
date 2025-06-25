@@ -6,7 +6,7 @@
 - [x] Install dependencies (`npm install`)
 - [x] Set up `.env.local` from example
 - [ ] Add/refine API keys for Gmail, Supabase, Clerk, OpenAI/Anthropic
-- [ ] Configure Tailwind CSS
+- [x] Configure Tailwind CSS
 - [ ] Set up Supabase project and credentials
 - [ ] Set up Clerk authentication and OAuth
 - [ ] Enable Gmail API in Google Cloud
@@ -19,7 +19,7 @@
 
 ### 1.3 Core Infrastructure
 - [x] Initialize Next.js app (with TypeScript)
-- [ ] Set up project structure (src/app, components, lib, types, hooks, mock)
+- [x] Set up project structure (src/app, components, lib, types, hooks, mock)
 - [ ] Configure Supabase client
 - [ ] Implement basic API routes
 
@@ -30,11 +30,16 @@
 - [ ] Display email list in UI (mock/local data for MVP)
 
 ### 1.5 UI & Workflow
-- [ ] Create UI spec sheet (see `docs/ui-spec.md`)
-- [ ] Build sample email UI (list + detail view)
+- [x] Create UI spec sheet (see `docs/ui-spec.md`)
+- [x] Build sample email UI (list + detail view)
 - [ ] Implement approve/reject workflow (local state)
-- [ ] Status updates in UI
-- [ ] Basic styling with Tailwind & shadcn/ui
+- [x] Status updates in UI
+- [x] Basic styling with Tailwind & shadcn/ui
+- [x] **Thread-based email grouping** (2024-12-25)
+- [x] **AI-generated reply drafts** (2024-12-25)
+- [x] **Knowledge base sidebar (people & projects)** (2024-12-25)
+- [x] **Modern UI with shadcn/ui components** (2024-12-25)
+- [ ] Landing page for product showcase
 
 ### 1.6 Bug Tracking & QA
 - [ ] Log installation and setup bugs in `bugs.md`
@@ -121,8 +126,8 @@
 - Success metrics and gamification ideas are tracked in `docs/ideas.md`.
 - This plan is reviewed and updated weekly.
 
-**Status:** 🟡 In Progress
-**Last Updated:** 2024-06-24
+**Status:** 🟡 In Progress - Major UI refactor completed
+**Last Updated:** 2024-12-25
 
 =====================================
 # Next Steps for SundayL Development
@@ -158,16 +163,40 @@
 ## Week 2 Goals: Email Processing
 
 ### AI Integration
-- [ ] **OpenAI/Anthropic Setup**: Configure AI model access
+- [x] **OpenAI/Anthropic Setup**: Configure AI model access (2024-12-25)
 - [ ] **Email Categorization**: Basic AI-powered email classification
 - [ ] **Importance Scoring**: Implement email importance algorithm
 - [ ] **Follow-up Detection**: Identify emails requiring action
+- [x] **Draft Reply Generation**: AI-powered reply suggestions (2024-12-25)
 
 ### Human-in-the-Loop Interface
-- [ ] **Email Review Dashboard**: UI for reviewing processed emails
-- [ ] **Approval/Rejection Workflow**: User interaction with AI suggestions
-- [ ] **Email Thread Management**: Group related emails
+- [x] **Email Review Dashboard**: UI for reviewing processed emails (2024-12-25)
+- [x] **Approval/Rejection Workflow**: User interaction with AI suggestions (2024-12-25)
+- [x] **Email Thread Management**: Group related emails (2024-12-25)
 - [ ] **Task Creation**: Convert emails to actionable tasks
+
+### Backend Integration
+- [x] **Supabase Schema Created**: threads, messages, draft_replies, people, projects (2024-12-25)
+- [ ] **Supabase Integration**: Replace mock data with real database
+- [ ] **Real OpenAI Integration**: Wire up actual API calls
+- [ ] **Gmail API Integration**: Fetch real emails
+
+### New Features Added (2024-12-25)
+- [x] **Thread-based UI**: Emails grouped by conversation threads
+- [x] **AI Draft Replies**: Generate and approve/reject AI responses
+- [x] **Knowledge Base**: Track people and projects from emails
+- [x] **Modern Design**: Beautiful UI with shadcn/ui components
+- [x] **Sending Animation**: Visual feedback when approving replies
+- [x] **API Credits System**: Track usage of AI features
+
+### Next Immediate Steps
+- [ ] Create landing page to showcase the product
+- [ ] Implement Supabase data fetching/mutations
+- [ ] Wire up real OpenAI API for reply generation
+- [ ] Add more API routes for knowledge base operations
+- [ ] Implement real email sending (mock for now)
+- [ ] Add search and filtering capabilities
+- [ ] Implement user authentication with Clerk/Supabase Auth
 
 ## Week 3 Goals: Advanced Features
 
@@ -275,4 +304,4 @@ sundayl/
 **Next Review**: Daily during active development
 **Status**: 🟡 In Progress
 
-0.1.1: **Last Updated**: 2024-06-24: ____ (commit message) here
+0.1.2: **Last Updated**: 2024-12-25: Implemented thread-based UI, AI reply generation, knowledge base, and modern design with shadcn/ui
