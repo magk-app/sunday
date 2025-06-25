@@ -1,27 +1,138 @@
+# SundayL & MAGK Development Plan
+====================================================
+## 1. Immediate Next Steps (Sprint & Action Items)
+====================================================
+### 1.1 Environment & Project Setup
+- [x] Install dependencies (`npm install`)
+- [x] Set up `.env.local` from example
+- [ ] Add/refine API keys for Gmail, Supabase, Clerk, OpenAI/Anthropic
+- [ ] Configure Tailwind CSS
+- [ ] Set up Supabase project and credentials
+- [ ] Set up Clerk authentication and OAuth
+- [ ] Enable Gmail API in Google Cloud
+- [ ] Fill in all API keys in `.env.local`
+
+### 1.2 Database & Schema
+- [ ] Create Supabase tables for emails, threads, tasks
+- [ ] Set up Row Level Security (RLS) policies
+- [ ] Generate TypeScript types from schema
+
+### 1.3 Core Infrastructure
+- [x] Initialize Next.js app (with TypeScript)
+- [ ] Set up project structure (src/app, components, lib, types, hooks, mock)
+- [ ] Configure Supabase client
+- [ ] Implement basic API routes
+
+### 1.4 Email Processing Foundation
+- [ ] Integrate Gmail API for fetching emails
+- [ ] Parse emails (subject, sender, body, etc.)
+- [ ] Store emails in Supabase
+- [ ] Display email list in UI (mock/local data for MVP)
+
+### 1.5 UI & Workflow
+- [ ] Create UI spec sheet (see `docs/ui-spec.md`)
+- [ ] Build sample email UI (list + detail view)
+- [ ] Implement approve/reject workflow (local state)
+- [ ] Status updates in UI
+- [ ] Basic styling with Tailwind & shadcn/ui
+
+### 1.6 Bug Tracking & QA
+- [ ] Log installation and setup bugs in `bugs.md`
+- [ ] Log and fix new bugs as they arise
+
+---
+====================================================
+## 2. Long-Term Development Plan (Hierarchical by Module)
+====================================================
+
+### 2.1 Core Email Assistant
+- Email fetching, parsing, and storage
+- AI-powered email categorization and importance scoring
+- Approval/rejection workflow (human-in-the-loop)
+- Task extraction and follow-up detection
+- Email thread management
+- Daily briefing and notification system
+
+### 2.2 AI & Knowledge Base
+- Integrate OpenAI/Anthropic for email analysis
+- Implement LangGraph workflow for email processing
+- LlamaIndex RAG setup for knowledge base
+- Generate and store email embeddings
+- Semantic search across email history
+- User preference learning system
+
+### 2.3 MAGK Framework
+- Workflow creation agent (AI builds custom workflows)
+- MCP server integration (Notion, Gmail, etc.)
+- MCP protocol implementation (cross-platform sync)
+- Workflow marketplace (share and rate workflows)
+- Compositional workflow system (combine multiple workflows)
+
+### 2.4 UI/UX & Human-in-the-Loop
+- Email review dashboard
+- Task management interface
+- Knowledge base UI
+- Workflow editor (future)
+- Notifications/toasts and status bar
+
+### 2.5 Integrations & Extensibility
+- Add connectors for Slack, WhatsApp, Notion, Google Calendar, etc.
+- Modular architecture for easy integration
+- API endpoints for all major modules
+
+### 2.6 DevOps & Security
+- CI/CD pipeline setup
+- Automated testing (unit, integration, E2E)
+- Secrets management and audit logging
+- Data encryption and GDPR compliance
+
+---
+====================================================
+## 3. Testing & Quality Assurance
+====================================================
+
+### 3.1 Unit Testing
+- Test utility functions, API handlers, and core logic
+- Use Jest or similar framework
+
+### 3.2 Integration Testing
+- Test API endpoints with database
+- Test email fetching/parsing end-to-end
+
+### 3.3 End-to-End (E2E) Testing
+- Simulate user flows (sign-in, email review, approval, etc.)
+- Use Cypress or Playwright
+
+### 3.4 Manual QA
+- Regular manual walkthroughs of UI
+- Cross-browser and device testing
+- Regression testing after major changes
+
+### 3.5 Bug Tracking
+- All bugs and issues tracked in `bugs.md` (see new format)
+- Prioritize and assign bugs for each sprint
+
+---
+====================================================
+## 4. Notes
+====================================================
+
+- Detailed database schema, user preferences, and advanced ideas have been moved to `docs/specs.md` and `docs/ideas.md` for clarity.
+- Success metrics and gamification ideas are tracked in `docs/ideas.md`.
+- This plan is reviewed and updated weekly.
+
+**Status:** 🟡 In Progress
+**Last Updated:** 2024-06-24
+
+=====================================
 # Next Steps for SundayL Development
+=====================================
 
-## Immediate Actions (This Week)
+## Tools & Technologies Under Consideration
+**Mintify** - Potential integration for financial email processing and expense tracking automation.
+---
 
-### 1. Environment Setup
-- [x] **Install Dependencies**: Run `npm install` to install all packages
-- [x] **Set Up Environment Variables**: `.env.local` created from example
-- [ ] **Add/Refine API Keys**: Ensure all required keys for Gmail API, Supabase, Clerk, OpenAI/Anthropic are present in `.env.local` and `env.example`
-- [ ] **Set up Tailwind CSS**: Configure styling framework
-
-### 2. External Service Setup
-- [ ] **Supabase Project**: Create new Supabase project and get credentials
-- [ ] **Clerk Authentication**: Set up Clerk account and configure OAuth
-- [ ] **Gmail API**: Create Google Cloud project and enable Gmail API
-- [X] **Environment Variables**: Create `.env.local` with all API keys
-- [ ] **Environment Variables**: Fill in all API keys in `.env.local`
-
-### 3. Database Schema Implementation
-- [ ] **Create Tables**: Implement the database schema from plan.md
-- [ ] **Set up Row Level Security**: Configure Supabase RLS policies
-- [ ] **Create Database Types**: Generate TypeScript types from schema
-
-## Week 1 Goals: Foundation
-
+## General Tasks for SundayL
 ### Core Infrastructure
 - [x] **Basic Next.js App**: Create main layout and pages (shadCN)
 - [ ] **Authentication Flow**: Implement Clerk sign-in/sign-up
@@ -34,15 +145,13 @@
 - [ ] **Database Storage**: Store emails in Supabase
 - [ ] **Basic UI**: Simple email list view
 
-## New Next Steps
-
-### 4. Frontend Spec & UI Prototyping
+### Frontend Spec & UI Prototyping
 - [ ] **Create UI Spec Sheet**: Document the layout and components for the MVP (no auth, just Gmail API and local DB)
 - [ ] **Build Example Email UI**: Show a sample email in the interface
 - [ ] **Build Example Workflow UI**: Show a simple approval workflow (approve/reject email)
 - [ ] **Use local state or mock data for now**
 
-### 5. Bug Tracking
+### Bug Tracking
 - [x] **Log Installation Bugs**: See `bugs.md` for langgraph and dependency issues
 - [ ] **Log and Fix New Bugs**: Record any new issues in `bugs.md` and attempt to fix; if not, document them
 
@@ -119,7 +228,9 @@ sundayl/
 - `/api/workflows/*` - Workflow management endpoints
 - `/api/mcp/*` - MCP server endpoints
 
+===================================
 ## Success Criteria for Each Phase
+===================================
 
 ### Phase 1 Success (Week 1)
 - [ ] User can sign up and log in

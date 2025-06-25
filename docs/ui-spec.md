@@ -3,6 +3,8 @@
 ## Overview
 This document describes the user interface for the SundayL MVP. The goal is to display emails fetched from the Gmail API, allow users to view details, and approve or reject emails in a simple workflow. No authentication is required for this version; use mock/local data if needed.
 
+Use tailwind.css and shadcn for the beautiful ui elements
+
 ---
 
 ## 1. Main Layout
@@ -55,7 +57,9 @@ This document describes the user interface for the SundayL MVP. The goal is to d
 ---
 
 ## 4. Example Data
-```json
+Import the data from emails.ts in mock
+
+<!-- ```json
 {
   "id": "email_1",
   "sender": "alice@example.com",
@@ -67,7 +71,7 @@ This document describes the user interface for the SundayL MVP. The goal is to d
   "importance": "high",
   "status": "pending"
 }
-```
+``` -->
 
 ---
 
