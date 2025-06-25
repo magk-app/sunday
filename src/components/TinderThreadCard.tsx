@@ -19,11 +19,11 @@ export interface TinderThreadCardProps {
   onAction: (action: 'approve' | 'reject' | 'edit' | 'save_kb' | 'cancel_edit') => void;
   onChangeReply?: (text: string) => void;
   showExpand: boolean;
-  setShowExpand: React.Dispatch<React.SetStateAction<boolean>>;
+  setShowExpand: (show: boolean) => void;
   showImprove: boolean;
-  setShowImprove: React.Dispatch<React.SetStateAction<boolean>>;
-  jumpTarget: 'summary' | 'reply' | 'edit';
-  setJumpTarget: React.Dispatch<React.SetStateAction<'summary' | 'reply' | 'edit'>>;
+  setShowImprove: (show: boolean) => void;
+  jumpTarget: 'summary' | 'reply';
+  setJumpTarget: (target: 'summary' | 'reply') => void;
 }
 
 const SWIPE_THRESHOLD = 0.33; // 33% of card width/height
@@ -42,6 +42,7 @@ const TinderThreadCard = forwardRef<HTMLDivElement, TinderThreadCardProps>(funct
   const [streamingReply, setStreamingReply] = useState<string>('');
   const [isStreaming, setIsStreaming] = useState(false);
   const [hasStreamedReply, setHasStreamedReply] = useState(false);
+  const [showImproveChat, setShowImproveChat] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const summaryRef = useRef<HTMLDivElement>(null);
@@ -50,6 +51,9 @@ const TinderThreadCard = forwardRef<HTMLDivElement, TinderThreadCardProps>(funct
   const controls = useAnimation();
   const x = useMotionValue(0);
   const y = useMotionValue(0);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const mainContentRef = useRef<HTMLDivElement>(null);
+  const [showTooltip, setShowTooltip] = useState(false);
 
   // Overlay color and label
   let overlayColor = '';
@@ -180,38 +184,26 @@ const TinderThreadCard = forwardRef<HTMLDivElement, TinderThreadCardProps>(funct
     }
   }, [isEditing]);
 
-  // Section jumping with smooth scroll
-  useEffect(() => {
-    if (jumpTarget === 'summary' && summaryRef.current) {
-      summaryRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    } else if (jumpTarget === 'reply' && replyRef.current) {
-      // Scroll to reply with extra space at bottom to separate from summary
-      replyRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
-      // Add extra scroll to ensure proper spacing
-      setTimeout(() => {
-        if (replyRef.current) {
-          const rect = replyRef.current.getBoundingClientRect();
-          const additionalScroll = window.innerHeight * 0.3; // 30% of viewport height
-          window.scrollBy({ top: additionalScroll, behavior: 'smooth' });
-        }
-      }, 500);
-    } else if (jumpTarget === 'edit' && isEditing && textareaRef.current) {
-      textareaRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      // Focus textarea after scroll
-      setTimeout(() => textareaRef.current?.focus(), 300);
-    }
-  }, [jumpTarget, isEditing]);
+  // Remove janky scroll detection - keep it simple
 
-  // Reset states when modal closes
+  // Simple scroll to top when thread changes
   useEffect(() => {
-    if (!showImprove) {
+    const mainContent = mainContentRef.current;
+    if (mainContent) {
+      mainContent.scrollTop = 0;
+    }
+  }, [thread.id]);
+
+  // Reset states when improvement chat closes
+  useEffect(() => {
+    if (!showImproveChat) {
       setStreamingReply('');
       setHasStreamedReply(false);
       setChatHistory([]);
       setChatInput('');
       setIsStreaming(false);
     }
-  }, [showImprove]);
+  }, [showImproveChat]);
 
   // Chatbot improvement handler with streaming
   const handleChatSend = async () => {
@@ -245,9 +237,11 @@ const TinderThreadCard = forwardRef<HTMLDivElement, TinderThreadCardProps>(funct
   const handleAcceptImprovement = () => {
     if (hasStreamedReply && streamingReply && onChangeReply && !streamingReply.startsWith('❌')) {
       onChangeReply(streamingReply);
-      setShowImprove(false);
-      // Add success feedback
-      setChatHistory(prev => [...prev, { role: 'ai', text: 'Improvement applied successfully! ✅' }]);
+      setShowImproveChat(false);
+      setStreamingReply('');
+      setHasStreamedReply(false);
+      setChatHistory([]);
+      setChatInput('');
     }
   };
 
@@ -258,6 +252,39 @@ const TinderThreadCard = forwardRef<HTMLDivElement, TinderThreadCardProps>(funct
     setChatHistory([]);
     setChatInput('');
     setIsStreaming(false);
+  };
+
+  // Get thread messages - create realistic sample data
+  const getThreadMessages = (threadId: string) => {
+    // Generate realistic email thread based on subject and participants
+    const messages = [
+      {
+        id: `msg_${threadId}_1`,
+        sender: thread.participants[0] || 'Unknown',
+        body: `Hi team,\n\nI wanted to follow up on our discussion about ${thread.subject}. I think we should move forward with the proposal we discussed last week.\n\nCould everyone please review the attached documents and let me know your thoughts by Friday?\n\nBest regards,\n${thread.participants[0]?.split('@')[0] || 'User'}`,
+        date: new Date(Date.now() - 86400000 * 2).toISOString(), // 2 days ago
+      }
+    ];
+
+    if (thread.participants.length > 1) {
+      messages.push({
+        id: `msg_${threadId}_2`,
+        sender: thread.participants[1],
+        body: `Thanks for the update! I've reviewed the documents and they look good to me. \n\nI have a few minor suggestions:\n\n1. Could we adjust the timeline slightly?\n2. The budget looks reasonable\n3. We should include more details about the implementation phase\n\nOverall, I'm supportive of moving forward.\n\nThanks,\n${thread.participants[1]?.split('@')[0] || 'User2'}`,
+        date: new Date(Date.now() - 86400000).toISOString(), // 1 day ago
+      });
+    }
+
+    if (thread.participants.length > 2) {
+      messages.push({
+        id: `msg_${threadId}_3`,
+        sender: thread.participants[2],
+        body: `I agree with the previous comments. Let's schedule a meeting to finalize the details.\n\nI'm available next Tuesday or Wednesday afternoon. Please let me know what works for everyone.\n\nBest,\n${thread.participants[2]?.split('@')[0] || 'User3'}`,
+        date: new Date(Date.now() - 43200000).toISOString(), // 12 hours ago
+      });
+    }
+
+    return messages;
   };
 
   return (
@@ -307,70 +334,153 @@ const TinderThreadCard = forwardRef<HTMLDivElement, TinderThreadCardProps>(funct
             {thread.participants.slice(0, 3).join(', ')}
             {thread.participants.length > 3 && ` +${thread.participants.length - 3}`}
           </p>
+
+
           {/* Main content */}
-          <div className="flex-1 overflow-y-auto pr-1 mb-4 space-y-6">
-            <div ref={summaryRef}>
-              <h4 className="text-lg font-bold text-blue-700 mb-2">AI Summary</h4>
-              <p className="text-base text-gray-800 whitespace-pre-wrap">{thread.summary || 'No summary available.'}</p>
-            </div>
-            {/* AI Reply Section - consolidated with edit and improvement */}
+          <div ref={mainContentRef} className="flex-1 overflow-y-auto pr-1 space-y-6">
+            {/* Simple navigation dots - only show when reply exists */}
             {reply && (
-              <div ref={replyRef} className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4 mb-6">
-                <h4 className="font-semibold text-blue-800 mb-3 flex items-center gap-2">
+              <div className="fixed left-8 top-1/2 transform -translate-y-1/2 flex flex-col gap-4 z-10">
+                <button
+                  onClick={() => {
+                    if (summaryRef.current && mainContentRef.current) {
+                      const offsetTop = summaryRef.current.offsetTop - mainContentRef.current.offsetTop;
+                      mainContentRef.current.scrollTo({ top: offsetTop, behavior: 'smooth' });
+                    }
+                  }}
+                  className="w-3 h-3 bg-white/80 hover:bg-white rounded-full shadow-md hover:shadow-lg transition-all"
+                  title="AI Summary"
+                />
+                <button
+                  onClick={() => {
+                    if (replyRef.current && mainContentRef.current) {
+                      const offsetTop = replyRef.current.offsetTop - mainContentRef.current.offsetTop;
+                      mainContentRef.current.scrollTo({ top: offsetTop, behavior: 'smooth' });
+                    }
+                  }}
+                  className="w-3 h-3 bg-white/80 hover:bg-white rounded-full shadow-md hover:shadow-lg transition-all"
+                  title="AI Reply"
+                />
+              </div>
+            )}
+
+            {/* AI Summary Section */}
+            <div ref={summaryRef} className="mb-6">
+              <h4 className="font-semibold text-gray-800 mb-3 flex items-center gap-2 text-lg">
+                <span>📝</span>
+                AI Summary
+              </h4>
+              <div className="bg-gray-50 rounded-lg p-4 border">
+                <p className="text-base text-gray-800 whitespace-pre-wrap leading-relaxed">{thread.summary || 'No summary available.'}</p>
+              </div>
+            </div>
+
+            {/* AI Reply Section - same hierarchy as summary */}
+            {reply && (
+              <div ref={replyRef} className="mb-6">
+                <h4 className="font-semibold text-gray-800 mb-3 flex items-center gap-2 text-lg">
                   <span>🤖</span>
                   AI-Generated Reply
                 </h4>
                 
-                {/* Display mode or Edit mode */}
-                {isEditing ? (
-                  <div className="space-y-3">
-                    <Textarea
-                      ref={textareaRef}
-                      value={editedReply}
-                      onChange={(e) => onChangeReply?.(e.target.value)}
-                      className="resize-none min-h-[120px] focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="Edit your reply here..."
-                      autoFocus
-                    />
-                    <div className="flex gap-2">
-                      <button 
-                        className="bg-green-600 text-white px-4 py-2 rounded font-semibold hover:bg-green-700 transition"
-                        onClick={() => onAction('edit')}
-                      >
-                        ✅ Save Changes
-                      </button>
-                      <button 
-                        className="bg-gray-500 text-white px-4 py-2 rounded font-semibold hover:bg-gray-600 transition"
-                        onClick={() => onAction('cancel_edit')}
-                      >
-                        Cancel
-                      </button>
-                    </div>
+                <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                  {/* Much larger text area for better visibility */}
+                  <Textarea
+                    ref={textareaRef}
+                    value={isEditing ? editedReply : (streamingReply || reply)}
+                    onChange={(e) => onChangeReply?.(e.target.value)}
+                    className="resize-none min-h-[200px] w-full text-base leading-relaxed focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                    placeholder={isEditing ? "Edit your reply here..." : "AI-generated reply"}
+                    readOnly={!isEditing}
+                    style={{ cursor: isEditing ? 'text' : 'default' }}
+                  />
+                  
+                  {/* Action buttons */}
+                  <div className="flex gap-2 flex-wrap mt-3">
+                    {isEditing ? (
+                      <>
+                        <button 
+                          className="bg-green-600 text-white px-4 py-2 rounded font-semibold hover:bg-green-700 transition"
+                          onClick={() => onAction('edit')}
+                        >
+                          ✅ Save Changes
+                        </button>
+                        <button 
+                          className="bg-gray-500 text-white px-4 py-2 rounded font-semibold hover:bg-gray-600 transition"
+                          onClick={() => onAction('cancel_edit')}
+                        >
+                          Cancel
+                        </button>
+                        <button 
+                          className="bg-purple-600 text-white px-3 py-2 rounded font-semibold hover:bg-purple-700 transition text-sm"
+                          onClick={() => setShowImproveChat(!showImproveChat)}
+                        >
+                          ✨ Improve with AI
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button 
+                          className="bg-yellow-600 text-white px-3 py-2 rounded font-semibold hover:bg-yellow-700 transition text-sm"
+                          onClick={() => onAction('edit')}
+                        >
+                          ✏️ Edit Reply
+                        </button>
+                        <button 
+                          className="bg-purple-600 text-white px-3 py-2 rounded font-semibold hover:bg-purple-700 transition text-sm"
+                          onClick={() => setShowImproveChat(!showImproveChat)}
+                        >
+                          ✨ Improve with AI
+                        </button>
+                        {hasStreamedReply && !streamingReply.startsWith('❌') && (
+                          <button 
+                            className="bg-green-600 text-white px-3 py-2 rounded font-semibold hover:bg-green-700 transition text-sm"
+                            onClick={handleAcceptImprovement}
+                          >
+                            ✅ Accept Improvement
+                          </button>
+                        )}
+                      </>
+                    )}
                   </div>
-                ) : (
-                  <div className="space-y-3">
-                    <p className="text-base whitespace-pre-wrap text-gray-800 bg-white rounded p-3 border">{reply}</p>
-                    
-                    {/* Action buttons */}
-                    <div className="flex gap-2 flex-wrap">
-                      <button 
-                        className="bg-yellow-600 text-white px-3 py-2 rounded font-semibold hover:bg-yellow-700 transition text-sm"
-                        onClick={() => onAction('edit')}
-                      >
-                        ✏️ Edit Reply
-                      </button>
-                      <button 
-                        className="bg-purple-600 text-white px-3 py-2 rounded font-semibold hover:bg-purple-700 transition text-sm"
-                        onClick={() => setShowImprove(true)}
-                      >
-                        ✨ Improve with AI
-                      </button>
+                  
+                  {/* Inline improvement chat interface */}
+                  {showImproveChat && (
+                    <div className="mt-4 border-t pt-3 space-y-3">
+                      <div className="flex gap-2">
+                        <Textarea
+                          value={chatInput}
+                          onChange={e => setChatInput(e.target.value)}
+                          onKeyDown={e => { 
+                            if (e.key === 'Enter' && !e.shiftKey) { 
+                              e.preventDefault(); 
+                              if (!isStreaming) handleChatSend(); 
+                            } 
+                          }}
+                          className="flex-1 resize-none text-sm"
+                          placeholder="e.g., 'Make it more formal', 'Add details about timeline'..."
+                          rows={2}
+                          disabled={isStreaming}
+                        />
+                        <button 
+                          className="bg-purple-600 text-white px-4 py-2 rounded font-semibold hover:bg-purple-700 transition disabled:opacity-50 disabled:cursor-not-allowed" 
+                          onClick={handleChatSend}
+                          disabled={isStreaming || !chatInput.trim()}
+                        >
+                          {isStreaming ? 'Improving...' : 'Improve'}
+                        </button>
+                      </div>
+                      
+                      {/* Show streaming improvement directly in the textarea above */}
+                      {isStreaming && (
+                        <div className="text-xs text-purple-600 flex items-center gap-1">
+                          <div className="animate-pulse w-1.5 h-1.5 bg-purple-500 rounded-full"></div>
+                          <span>Generating improved version...</span>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                )}
-                
-                {/* Add bottom spacing for better scrolling */}
-                <div className="h-32"></div>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -387,154 +497,174 @@ const TinderThreadCard = forwardRef<HTMLDivElement, TinderThreadCardProps>(funct
       </motion.div>
       {/* Expand Thread Modal */}
       {showExpand && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center" onClick={() => setShowExpand(false)} tabIndex={-1} onKeyDown={e => { if (e.key === 'Escape') setShowExpand(false); }}>
-          <div className="bg-white rounded-xl shadow-lg p-6 w-[600px] max-h-[80vh] overflow-y-auto relative animate-fade-in custom-scrollbar" onClick={e => e.stopPropagation()} tabIndex={0}>
-            <button className="absolute top-2 right-2 text-gray-500 hover:text-gray-800 text-xl font-bold" onClick={() => setShowExpand(false)} aria-label="Close">×</button>
-            <h3 className="text-xl font-bold mb-4">Full Email Thread</h3>
-            
-            {/* Thread messages timeline */}
-            <div className="space-y-4 mb-6">
-              {getThreadMessages(thread.id).map((message, idx) => (
-                <div key={message.id} className="relative">
-                  <div className="flex items-start gap-3 p-4 bg-gray-50 rounded-lg">
-                    <Avatar className="w-10 h-10">
-                      <div className="w-full h-full bg-gradient-to-br from-green-400 to-blue-500 flex items-center justify-center text-sm text-white font-medium">
-                        {message.sender[0].toUpperCase()}
-                      </div>
-                    </Avatar>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="font-semibold">{message.sender}</span>
-                        <span className="text-xs text-gray-500">
-                          {new Date(message.date).toLocaleString()}
-                        </span>
-                      </div>
-                      <p className="text-gray-700 whitespace-pre-wrap">{message.body}</p>
-                    </div>
-                  </div>
-                  {idx < getThreadMessages(thread.id).length - 1 && (
-                    <div className="absolute left-7 top-16 bottom-0 w-0.5 bg-gray-200" />
-                  )}
-                </div>
-              ))}
-            </div>
-            
-            {/* AI Reply in modal */}
-            {reply && (
-              <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4">
-                <h4 className="font-semibold text-blue-800 mb-3 flex items-center gap-2">
-                  <span>🤖</span>
-                  AI-Generated Reply
-                </h4>
-                <p className="text-gray-700 whitespace-pre-wrap bg-white rounded p-3 border">{reply}</p>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-      {/* Add Improvement Modal (Chatbot with Streaming) */}
-      {showImprove && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center" onClick={handleCancelImprovement} tabIndex={-1} onKeyDown={e => { if (e.key === 'Escape') handleCancelImprovement(); }}>
-          <div className="bg-white rounded-xl shadow-lg p-6 w-[600px] max-h-[80vh] overflow-y-auto relative animate-fade-in" onClick={e => e.stopPropagation()} tabIndex={0}>
-            <button className="absolute top-2 right-2 text-gray-500 hover:text-gray-800 text-xl font-bold" onClick={handleCancelImprovement} aria-label="Close">×</button>
-            <h3 className="text-xl font-bold mb-4">Suggest an Improvement</h3>
-            
-            {/* Current reply */}
-            <div className="mb-4">
-              <h4 className="text-sm font-semibold text-gray-700 mb-2">Current Reply:</h4>
-              <div className="bg-gray-50 rounded p-3 text-sm text-gray-800 border">{reply}</div>
-            </div>
-            
-            {/* Chat history */}
-            <div className="mb-4 h-32 overflow-y-auto bg-gray-50 rounded p-3 border">
-              {chatHistory.length === 0 && !streamingReply && <div className="text-gray-400 text-sm">Type your suggestion below to improve the reply.</div>}
-              {chatHistory.map((msg, i) => (
-                <div key={i} className={`mb-2 ${msg.role === 'user' ? 'text-right' : 'text-left'}`}>
-                  <span className={`inline-block px-3 py-2 rounded-lg text-sm ${
-                    msg.role === 'user' 
-                      ? 'bg-blue-600 text-white' 
-                      : 'bg-gray-200 text-gray-800'
-                  }`}>
-                    {msg.text}
-                  </span>
-                </div>
-              ))}
-            </div>
-            
-            {/* Streaming improved reply */}
-            {(streamingReply || isStreaming) && (
-              <div className="mb-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <h4 className="text-sm font-semibold text-green-700">Improved Reply:</h4>
-                  {isStreaming && (
-                    <div className="flex items-center gap-1">
-                      <div className="animate-pulse w-2 h-2 bg-green-500 rounded-full"></div>
-                      <div className="animate-pulse w-2 h-2 bg-green-500 rounded-full" style={{ animationDelay: '0.2s' }}></div>
-                      <div className="animate-pulse w-2 h-2 bg-green-500 rounded-full" style={{ animationDelay: '0.4s' }}></div>
-                    </div>
-                  )}
-                </div>
-                <div className={`rounded p-3 text-sm border min-h-[80px] ${
-                  streamingReply.startsWith('❌') 
-                    ? 'bg-red-50 border-red-200 text-red-800' 
-                    : 'bg-green-50 border-green-200 text-gray-800'
-                }`}>
-                  {streamingReply || (isStreaming ? 'Generating improvement...' : '')}
-                  {isStreaming && <span className="animate-pulse">|</span>}
-                </div>
-                {hasStreamedReply && !streamingReply.startsWith('❌') && (
-                  <div className="flex gap-2 mt-3">
-                    <button 
-                      className="bg-green-600 text-white px-4 py-2 rounded font-semibold hover:bg-green-700 transition"
-                      onClick={handleAcceptImprovement}
-                    >
-                      ✅ Accept Improvement
-                    </button>
-                    <button 
-                      className="bg-gray-500 text-white px-4 py-2 rounded font-semibold hover:bg-gray-600 transition"
-                      onClick={() => { setStreamingReply(''); setHasStreamedReply(false); }}
-                    >
-                      🔄 Try Again
-                    </button>
-                  </div>
-                )}
-                {streamingReply.startsWith('❌') && (
-                  <div className="flex gap-2 mt-3">
-                    <button 
-                      className="bg-blue-600 text-white px-4 py-2 rounded font-semibold hover:bg-blue-700 transition"
-                      onClick={() => { setStreamingReply(''); setHasStreamedReply(false); }}
-                    >
-                      🔄 Try Again
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-            
-            {/* Input area */}
-            <div className="flex gap-2 mt-4">
-              <Textarea
-                value={chatInput}
-                onChange={e => setChatInput(e.target.value)}
-                onKeyDown={e => { 
-                  if (e.key === 'Enter' && !e.shiftKey) { 
-                    e.preventDefault(); 
-                    if (!isStreaming) handleChatSend(); 
-                  } 
-                }}
-                className="flex-1 resize-none"
-                placeholder="Type your suggestion (e.g., 'Make it more formal', 'Add more details about timeline')..."
-                rows={2}
-                disabled={isStreaming}
-              />
-              <button 
-                className="bg-blue-600 text-white px-4 py-2 rounded font-semibold hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed" 
-                onClick={handleChatSend}
-                disabled={isStreaming || !chatInput.trim()}
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl h-5/6 flex flex-col">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-6 border-b">
+              <h3 className="text-xl font-bold">{thread.subject}</h3>
+              <button
+                onClick={() => setShowExpand(false)}
+                className="text-gray-500 hover:text-gray-700 transition text-2xl"
               >
-                {isStreaming ? 'Improving...' : 'Improve'}
+                ×
               </button>
             </div>
+
+                                      {/* Modal Content - Two Sections: Email Thread (Left) and AI Reply Console (Right) */}
+             <div className="flex-1 flex overflow-hidden">
+               {/* Left Section - Complete Email Thread */}
+               <div className="w-1/2 border-r overflow-y-auto custom-scrollbar bg-gray-50">
+                 <div className="p-6">
+                   <h4 className="font-semibold text-gray-800 text-xl mb-4">📧 Email Thread</h4>
+                   
+                   {/* Full Email Thread with Timeline */}
+                   <div className="space-y-4">
+                     {getThreadMessages(thread.id).map((msg, idx) => (
+                       <div key={idx} className="relative">
+                         <div className="flex gap-4">
+                           <div className="w-10 h-10 bg-gradient-to-br from-green-400 to-blue-500 rounded-full flex items-center justify-center text-sm text-white font-medium flex-shrink-0">
+                             {msg.sender[0].toUpperCase()}
+                           </div>
+                           <div className="flex-1">
+                             <div className="bg-white rounded-lg p-4 border shadow-sm">
+                               <div className="flex items-center gap-2 mb-2">
+                                 <span className="font-semibold text-sm">{msg.sender}</span>
+                                 <span className="text-xs text-gray-500">{new Date(msg.date).toLocaleString()}</span>
+                               </div>
+                               <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{msg.body}</p>
+                             </div>
+                           </div>
+                         </div>
+                         {/* Connecting line */}
+                         {idx < getThreadMessages(thread.id).length - 1 && (
+                           <div className="absolute left-5 top-12 w-0.5 h-8 bg-gray-300"></div>
+                         )}
+                       </div>
+                     ))}
+                   </div>
+                 </div>
+               </div>
+
+               {/* Right Section - AI Reply Console with Everything */}
+               <div className="w-1/2 overflow-y-auto custom-scrollbar">
+                 <div className="p-6 h-full flex flex-col">
+                   <h4 className="font-semibold text-gray-800 text-xl mb-4">🤖 AI Reply Console</h4>
+                   
+                   {/* AI Summary */}
+                   <div className="mb-4">
+                     <h5 className="font-semibold text-gray-700 mb-2 text-sm">📝 Summary</h5>
+                     <div className="bg-gray-50 rounded-lg p-3 border">
+                       <p className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">{thread.summary || 'No summary available.'}</p>
+                     </div>
+                   </div>
+
+                   {/* AI Reply - Takes up most of the space */}
+                   {reply && (
+                     <div className="flex-1 flex flex-col">
+                       <h5 className="font-semibold text-gray-700 mb-2 text-sm">✉️ Reply Draft</h5>
+                       
+                       <div className="bg-blue-50 rounded-lg p-4 border border-blue-200 flex-1 flex flex-col">
+                         {/* Very large text area that fills available space */}
+                         <Textarea
+                           value={isEditing ? editedReply : reply}
+                           onChange={(e) => onChangeReply?.(e.target.value)}
+                           className="resize-none flex-1 w-full text-base leading-relaxed focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white min-h-[300px]"
+                           placeholder={isEditing ? "Edit your reply here..." : "AI-generated reply"}
+                           readOnly={!isEditing}
+                           style={{ cursor: isEditing ? 'text' : 'default' }}
+                         />
+                         
+                         {/* Improvement chat interface */}
+                         {showImproveChat && (
+                           <div className="mt-4 border-t pt-3 space-y-3">
+                             <div className="flex gap-2">
+                               <Textarea
+                                 value={chatInput}
+                                 onChange={e => setChatInput(e.target.value)}
+                                 onKeyDown={e => { 
+                                   if (e.key === 'Enter' && !e.shiftKey) { 
+                                     e.preventDefault(); 
+                                     if (!isStreaming) handleChatSend(); 
+                                   } 
+                                 }}
+                                 className="flex-1 resize-none text-sm"
+                                 placeholder="e.g., 'Make it more formal', 'Add details about timeline'..."
+                                 rows={2}
+                                 disabled={isStreaming}
+                               />
+                               <button 
+                                 className="bg-purple-600 text-white px-4 py-2 rounded font-semibold hover:bg-purple-700 transition disabled:opacity-50 disabled:cursor-not-allowed" 
+                                 onClick={handleChatSend}
+                                 disabled={isStreaming || !chatInput.trim()}
+                               >
+                                 {isStreaming ? 'Improving...' : 'Improve'}
+                               </button>
+                             </div>
+                             
+                             {/* Show streaming improvement directly in the textarea above */}
+                             {isStreaming && (
+                               <div className="text-xs text-purple-600 flex items-center gap-1">
+                                 <div className="animate-pulse w-1.5 h-1.5 bg-purple-500 rounded-full"></div>
+                                 <span>Generating improved version...</span>
+                               </div>
+                             )}
+                           </div>
+                         )}
+                         
+                         {/* Action buttons */}
+                         <div className="flex gap-2 mt-4 flex-wrap">
+                           {isEditing ? (
+                             <>
+                               <button 
+                                 className="bg-green-600 text-white px-4 py-2 rounded font-semibold hover:bg-green-700 transition"
+                                 onClick={() => onAction('edit')}
+                               >
+                                 ✅ Save Changes
+                               </button>
+                               <button 
+                                 className="bg-gray-500 text-white px-4 py-2 rounded font-semibold hover:bg-gray-600 transition"
+                                 onClick={() => onAction('cancel_edit')}
+                               >
+                                 Cancel
+                               </button>
+                               <button 
+                                 className="bg-purple-600 text-white px-3 py-2 rounded font-semibold hover:bg-purple-700 transition text-sm"
+                                 onClick={() => setShowImproveChat(!showImproveChat)}
+                               >
+                                 ✨ Improve with AI
+                               </button>
+                             </>
+                           ) : (
+                             <>
+                               <button 
+                                 className="bg-yellow-600 text-white px-4 py-2 rounded font-semibold hover:bg-yellow-700 transition"
+                                 onClick={() => onAction('edit')}
+                               >
+                                 ✏️ Edit Reply
+                               </button>
+                               <button 
+                                 className="bg-purple-600 text-white px-3 py-2 rounded font-semibold hover:bg-purple-700 transition text-sm"
+                                 onClick={() => setShowImproveChat(!showImproveChat)}
+                               >
+                                 ✨ Improve with AI
+                               </button>
+                               {hasStreamedReply && !streamingReply.startsWith('❌') && (
+                                 <button 
+                                   className="bg-green-600 text-white px-3 py-2 rounded font-semibold hover:bg-green-700 transition text-sm"
+                                   onClick={handleAcceptImprovement}
+                                 >
+                                   ✅ Accept Improvement
+                                 </button>
+                               )}
+                             </>
+                           )}
+                         </div>
+                       </div>
+                     </div>
+                   )}
+                 </div>
+               </div>
+             </div>
           </div>
         </div>
       )}

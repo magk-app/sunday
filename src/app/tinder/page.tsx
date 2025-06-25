@@ -63,6 +63,7 @@ export default function TinderViewPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [editedReply, setEditedReply] = useState<string>('');
   const [notification, setNotification] = useState<string | null>(null);
+  const [notificationFading, setNotificationFading] = useState(false);
   const [processedCount, setProcessedCount] = useState(0);
   const [timeSaved, setTimeSaved] = useState(0); // in minutes
   const [showSplash, setShowSplash] = useState(true);
@@ -72,7 +73,7 @@ export default function TinderViewPage() {
   const [resetting, setResetting] = useState(false);
   const [showExpand, setShowExpand] = useState(false);
   const [showImprove, setShowImprove] = useState(false);
-  const [jumpTarget, setJumpTarget] = useState<'summary'|'reply'|'edit'>('summary');
+  const [jumpTarget, setJumpTarget] = useState<'summary'|'reply'>('summary');
 
   // Refs for scrolling
   const cardAreaRef = useRef<HTMLDivElement>(null);
@@ -124,11 +125,32 @@ export default function TinderViewPage() {
           localStorage.setItem('kb_people', JSON.stringify(newPeople));
           localStorage.setItem('kb_projects', JSON.stringify(newProjects));
           setNotification('Saved to Knowledge Base');
+        setTimeout(() => {
+          setNotificationFading(true);
+          setTimeout(() => {
+            setNotification(null);
+            setNotificationFading(false);
+          }, 300);
+        }, 2700);
         } catch {
           setNotification('Failed to save to KB');
+          setTimeout(() => {
+            setNotificationFading(true);
+            setTimeout(() => {
+              setNotification(null);
+              setNotificationFading(false);
+            }, 300);
+          }, 2700);
         }
       } else {
         setNotification('Failed to save to KB');
+        setTimeout(() => {
+          setNotificationFading(true);
+          setTimeout(() => {
+            setNotification(null);
+            setNotificationFading(false);
+          }, 300);
+        }, 2700);
       }
       setIsProcessing(false);
     } else if (action === 'edit') {
@@ -137,13 +159,20 @@ export default function TinderViewPage() {
         if (currentDraft && editedReply) {
           updateDraft({ body: editedReply, updated_at: new Date() });
           setNotification('Reply updated successfully!');
+          setTimeout(() => {
+            setNotificationFading(true);
+            setTimeout(() => {
+              setNotification(null);
+              setNotificationFading(false);
+            }, 300);
+          }, 2700);
         }
         setIsEditing(false);
       } else {
         // Enter edit mode
         setIsEditing(true);
         setEditedReply(currentDraft?.body || '');
-        setJumpTarget('edit');
+        setJumpTarget('reply');
       }
     } else if (action === 'cancel_edit') {
       setIsEditing(false);
@@ -432,7 +461,7 @@ export default function TinderViewPage() {
             </Button>
           </div>
           
-          <div className="mt-6 text-2xl animate-bounce">✨ You crushed it! ✨</div>
+          <div className="mt-6 text-2xl">✨ You crushed it! ✨</div>
         </div>
       </div>
     );
@@ -455,7 +484,7 @@ export default function TinderViewPage() {
       
       {/* Minimalistic vertical dot nav on left of card area */}
       <div className="absolute left-8 top-1/2 -translate-y-1/2 flex flex-col gap-6 z-20">
-        {['summary', 'reply', 'edit'].map((section) => (
+        {['summary', 'reply'].map((section) => (
           <button
             key={section}
             className={`w-3 h-3 rounded-full transition-all duration-300 ${
@@ -463,7 +492,7 @@ export default function TinderViewPage() {
                 ? 'bg-white shadow-lg border-2 border-blue-500 scale-125' 
                 : 'bg-white/70 hover:bg-white hover:scale-110 shadow-md border border-gray-200'
             } group relative`}
-            onClick={() => setJumpTarget(section as 'summary'|'reply'|'edit')}
+            onClick={() => setJumpTarget(section as 'summary'|'reply')}
             aria-label={`Jump to ${section}`}
           >
             {/* Tooltip on hover */}
@@ -496,18 +525,12 @@ export default function TinderViewPage() {
       </div>
       
       {/* Fixed footer action bar with proper buttons */}
-      <div className="fixed bottom-0 left-0 w-full flex justify-center items-center bg-white border-t py-4 z-30 gap-4 shadow-lg">
+      <div className="fixed bottom-0 left-0 w-full flex justify-center items-center bg-white border-t py-4 z-30 shadow-lg">
         <button 
           className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold transition-all duration-200 shadow-md hover:shadow-lg" 
           onClick={() => setShowExpand(true)}
         >
           📧 Expand Thread
-        </button>
-        <button 
-          className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-semibold transition-all duration-200 shadow-md hover:shadow-lg" 
-          onClick={() => { setShowImprove(true); setJumpTarget('reply'); }}
-        >
-          ✨ Add Improvement
         </button>
       </div>
       
@@ -523,9 +546,11 @@ export default function TinderViewPage() {
         </div>
       )}
       
-      {/* Notification */}
+      {/* Notification with fade animation */}
       {notification && (
-        <div className="fixed top-6 right-6 z-50 px-4 py-2 rounded-lg shadow text-white bg-blue-600">
+        <div className={`fixed top-6 right-6 z-50 px-4 py-2 rounded-lg shadow text-white bg-blue-600 transition-all duration-300 ${
+          notificationFading ? 'opacity-0 transform translate-y-2' : 'opacity-100 transform translate-y-0'
+        }`}>
           <span>{notification}</span>
           <button className="ml-4 text-white font-bold" onClick={() => setNotification(null)}>×</button>
         </div>
