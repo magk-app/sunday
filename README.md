@@ -27,7 +27,7 @@ Our vision is to create a central AI "chief-of-staff" that connects to all your 
 - **Frontend/UI**:
   - Next.js (TypeScript) for a modern, responsive web app
   - Tailwind CSS & shadcn/ui for rapid, beautiful UI development
-  - React Query/SWR for efficient data fetching and caching
+  - React Query/SWR for efficient data fetching and caching 
 - **Backend/Orchestration**:
   - Node.js (Express/Fastify) or Python (FastAPI/Django) for API and orchestration
   - Event-driven design for real-time updates and automation triggers

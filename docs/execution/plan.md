@@ -5,10 +5,9 @@
 ### 1.1 Environment & Project Setup
 - [x] Install dependencies (`npm install`)
 - [x] Set up `.env.local` from example
-- [ ] Add/refine API keys for Gmail, Supabase, Clerk, OpenAI/Anthropic
+- [X] Add/refine API keys for Supabase, OpenAI/Anthropic
 - [x] Configure Tailwind CSS
 - [ ] Set up Supabase project and credentials
-- [ ] Set up Clerk authentication and OAuth
 - [ ] Enable Gmail API in Google Cloud
 - [ ] Fill in all API keys in `.env.local`
 
@@ -23,7 +22,11 @@
 - [ ] Configure Supabase client
 - [ ] Implement basic API routes
 
-### 1.4 Email Processing Foundation
+### 1.4 Email Processing Foundation + AI
+- [ ] Set up langgraph using the javascript repo and set up agents
+- [ ] Set up email scraping from gmail using gmail authentication
+- [ ] Find and process email threads and display them online
+- [ ] Showcase Usage in settings to show how much everything is being used for
 - [ ] Integrate Gmail API for fetching emails
 - [ ] Parse emails (subject, sender, body, etc.)
 - [ ] Store emails in Supabase
@@ -40,10 +43,21 @@
 - [x] **Knowledge base sidebar (people & projects)** (2024-12-25)
 - [x] **Modern UI with shadcn/ui components** (2024-12-25)
 - [ ] Landing page for product showcase
+- [ ] **Tinder View for email triage** (swipe/approve/reject/edit/store)
+- [ ] **AI-generated email summary and importance classification in list**
+- [ ] **Status tags with workflow colors (pending/approved/rejected)**
+- [ ] **Manual knowledge base button in email views**
+- [ ] **Knowledge base: detailed person/project info, network, threads**
+- [ ] **Settings: profile pic, API key, usage/cost, hours saved**
+- [ ] **Rescrape button with menu for email import**
 
 ### 1.6 Bug Tracking & QA
 - [ ] Log installation and setup bugs in `bugs.md`
 - [ ] Log and fix new bugs as they arise
+
+### Archived Tasks
+- [ ] Set up Clerk authentication and OAuth
+
 
 ---
 ====================================================
