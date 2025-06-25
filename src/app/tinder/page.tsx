@@ -91,7 +91,12 @@ export default function TinderViewPage() {
 
   const currentThread = threads[index];
 
-  const currentDraft = drafts.find(d => d.thread_id === currentThread.id && d.status === 'pending');
+  // Prioritize pending drafts, but fall back to the most recent draft for this thread
+  // Skip deleted/filtered drafts when looking for current draft
+  const currentDraft = drafts.find(d => d.thread_id === currentThread.id && d.status === 'pending') || 
+                      drafts.filter(d => d.thread_id === currentThread.id && d.status !== 'rejected')
+                           .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())[0] || 
+                      null;
 
   const updateThread = (updated: Partial<ThreadWithExtras>) => {
     setThreads(prev => {
@@ -110,7 +115,7 @@ export default function TinderViewPage() {
     });
   };
 
-  const handleAction = async (action: 'approve' | 'reject' | 'edit' | 'save_kb' | 'cancel_edit' | 'auto_approve_with_kb' | 'reject_archive' | 'reject_with_kb') => {
+  const handleAction = async (action: 'approve' | 'reject' | 'edit' | 'save_kb' | 'cancel_edit' | 'auto_approve_with_kb' | 'reject_archive' | 'reject_with_kb' | 'generate_new') => {
     const current = threads[index];
     if (!current) return;
     
@@ -130,7 +135,7 @@ export default function TinderViewPage() {
     if (action === 'approve' || action === 'auto_approve_with_kb') {
       setProcessedCount((c) => c + 1);
       setTimeSaved((t) => t + 5); // 5 min per email
-      updateThread({ status: 'approved', has_draft: false, __handled: true });
+      updateThread({ status: 'approved', __handled: true });
       if (currentDraft) updateDraft({ status: 'sent', sent_at: new Date() });
       
       // If auto-approve with KB, also save to knowledge base
@@ -175,8 +180,16 @@ export default function TinderViewPage() {
     } else if (action === 'reject_archive' || action === 'reject_with_kb') {
       setProcessedCount((c) => c + 1);
       setTimeSaved((t) => t + 5); // 5 min per email
-      updateThread({ status: 'rejected', has_draft: false, __handled: true });
-      if (currentDraft) updateDraft({ status: 'rejected', sent_at: new Date() });
+      updateThread({ status: 'rejected', __handled: true, has_draft: false });
+      
+      // Delete the draft completely when rejecting
+      if (currentDraft) {
+        setDrafts(prev => {
+          const updated = prev.filter(d => d.id !== currentDraft.id);
+          saveDrafts(updated);
+          return updated;
+        });
+      }
       
       // If reject with KB, also save to knowledge base
       if (action === 'reject_with_kb') {
@@ -198,20 +211,20 @@ export default function TinderViewPage() {
                 updateUsageTracking(res.usage.tokens, res.usage.cost);
               }
               
-              setNotification('Thread rejected & saved to Knowledge Base');
+              setNotification('Reply rejected & deleted, saved to Knowledge Base');
             } catch {
-              setNotification('Thread rejected (KB save failed)');
+              setNotification('Reply rejected & deleted (KB save failed)');
             }
           } else {
-            setNotification('Thread rejected (KB save failed)');
+            setNotification('Reply rejected & deleted (KB save failed)');
           }
         } catch (error) {
           console.error('Failed to analyze thread:', error);
-          setNotification('Thread rejected (KB save failed)');
+          setNotification('Reply rejected & deleted (KB save failed)');
         }
         setIsProcessing(false);
       } else {
-        setNotification('Thread rejected');
+        setNotification('Reply rejected & deleted');
       }
       
       setTimeout(() => {
@@ -316,6 +329,56 @@ export default function TinderViewPage() {
     } else if (action === 'cancel_edit') {
       setIsEditing(false);
       setEditedReply('');
+    } else if (action === 'generate_new') {
+      // Generate a new reply for processed threads
+      setNotification('Generating new reply...');
+      setIsProcessing(true);
+      
+      try {
+        const messages = getThreadMessages(current.id);
+        const result = await openaiService.generateReply(current, messages);
+        
+        if (result.success && result.data) {
+          const newDraft: DraftReply = {
+            id: `draft_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+            thread_id: current.id,
+            user_id: 'user_jack',
+            body: result.data,
+            generated_at: new Date(),
+            status: 'pending' as const,
+            created_at: new Date(),
+            updated_at: new Date(),
+          };
+          
+          setDrafts(prev => {
+            const updated = [...prev, newDraft];
+            saveDrafts(updated);
+            return updated;
+          });
+          updateThread({ has_draft: true });
+          
+          // Track usage
+          if (result.usage) {
+            updateUsageTracking(result.usage.tokens, result.usage.cost);
+          }
+          
+          setNotification('✨ New reply generated!');
+        } else {
+          setNotification('Failed to generate new reply');
+        }
+      } catch (error) {
+        console.error('Failed to generate new reply:', error);
+        setNotification('Failed to generate new reply');
+      }
+      
+      setIsProcessing(false);
+      setTimeout(() => {
+        setNotificationFading(true);
+        setTimeout(() => {
+          setNotification(null);
+          setNotificationFading(false);
+        }, 300);
+      }, 2700);
     }
   };
 
@@ -672,7 +735,7 @@ export default function TinderViewPage() {
           <TinderThreadCard
             key={threads[index].id}
             thread={threads[index]}
-            reply={drafts.find(d => d.thread_id === threads[index].id && d.status === 'pending')?.body}
+            reply={currentDraft?.body}
             isEditing={isEditing}
             editedReply={editedReply}
             onChangeReply={handleChangeReply}

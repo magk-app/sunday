@@ -16,7 +16,7 @@ export interface TinderThreadCardProps {
   reply?: string;
   isEditing?: boolean;
   editedReply?: string;
-  onAction: (action: 'approve' | 'reject' | 'edit' | 'save_kb' | 'cancel_edit' | 'auto_approve_with_kb' | 'reject_archive' | 'reject_with_kb') => void;
+  onAction: (action: 'approve' | 'reject' | 'edit' | 'save_kb' | 'cancel_edit' | 'auto_approve_with_kb' | 'reject_archive' | 'reject_with_kb' | 'generate_new') => void;
   onChangeReply?: (text: string) => void;
   showExpand: boolean;
   setShowExpand: (show: boolean) => void;
@@ -457,24 +457,21 @@ const TinderThreadCard = forwardRef<HTMLDivElement, TinderThreadCardProps>(funct
                               </button>
                               
                               {/* Show different buttons for processed vs active threads */}
-                              {thread.status === 'approved' || thread.status === 'rejected' ? (
+                              {thread.status === 'rejected' && !reply ? (
                                 <button 
                                   className="bg-blue-600 text-white px-3 py-2 rounded font-semibold hover:bg-blue-700 transition text-sm"
-                                  onClick={() => {
-                                    // This would need a new action type to be handled by the parent
-                                    onAction('edit'); // Temporarily use edit action for now
-                                  }}
+                                  onClick={() => onAction('generate_new')}
                                 >
-                                  🔄 Generate New Reply
+                                  🔄 New Reply
                                 </button>
-                              ) : (
+                              ) : thread.status === 'pending' || (!thread.status && reply) ? (
                                 <button 
                                   className="bg-purple-600 text-white px-3 py-2 rounded font-semibold hover:bg-purple-700 transition text-sm"
                                   onClick={() => setShowImproveChat(!showImproveChat)}
                                 >
                                   ✨ Improve with AI
                                 </button>
-                              )}
+                              ) : null}
                         {hasStreamedReply && !streamingReply.startsWith('❌') && (
                           <button 
                             className="bg-green-600 text-white px-3 py-2 rounded font-semibold hover:bg-green-700 transition text-sm"
@@ -523,6 +520,25 @@ const TinderThreadCard = forwardRef<HTMLDivElement, TinderThreadCardProps>(funct
                       )}
                     </div>
                   )}
+                </div>
+              </div>
+            )}
+
+            {/* Show "New Reply" button for rejected threads without a draft */}
+            {!reply && thread.status === 'rejected' && (
+              <div ref={replyRef} className="mb-6">
+                <h4 className="font-semibold text-gray-800 mb-3 flex items-center gap-2 text-lg">
+                  <span>🤖</span>
+                  Generate New Reply
+                </h4>
+                <div className={`rounded-lg p-6 border text-center bg-red-50 border-red-200`}>
+                  <p className="text-gray-600 mb-4">This thread was rejected. Generate a new reply to continue the conversation.</p>
+                  <button 
+                    className="bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-700 transition"
+                    onClick={() => onAction('generate_new')}
+                  >
+                    🔄 New Reply
+                  </button>
                 </div>
               </div>
             )}

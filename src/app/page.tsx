@@ -118,10 +118,14 @@ export default function HomePage() {
 
   const selectedThread = threads.find(t => t.id === selectedThreadId) || null;
   const threadMessages = selectedThread ? getThreadMessages(selectedThread.id) : [];
-  const currentDraft = drafts.find(d => d.thread_id === selectedThreadId && d.status === 'pending') || null;
+  // Prioritize pending drafts, but fall back to the most recent draft for this thread
+  const currentDraft = drafts.find(d => d.thread_id === selectedThreadId && d.status === 'pending') || 
+                      drafts.filter(d => d.thread_id === selectedThreadId && d.status !== 'rejected' && d.status !== 'sent')
+                           .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())[0] || 
+                      null;
 
   const visibleThreads = threads.filter(t => {
-    if (selectedFolder === 'inbox') return !t.status || t.status === 'active' || t.status === 'pending';
+    if (selectedFolder === 'inbox') return true;
     if (selectedFolder === 'important') return t.important;
     if (selectedFolder === 'approved') return t.status === 'approved';
     if (selectedFolder === 'rejected') return t.status === 'rejected';
@@ -140,79 +144,31 @@ export default function HomePage() {
 
   const handleApprove = (draftId: string) => {
     const draft = drafts.find(d => d.id === draftId);
-    if (!draft || draft.status === 'sent') return; // Prevent re-sending
-
-    setDrafts(prev => {
-      const updated = prev.map(d => d.id === draftId ? { ...d, status: 'sent' as const, sent_at: new Date() } : d);
-      saveDrafts(updated);
-      return updated;
-    });
-    setThreads(prev => {
-      const updated = prev.map(t => t.id === selectedThreadId ? { ...t, has_draft: false, status: 'approved' as EmailThread['status'] } : t);
-      saveThreads(updated);
-      return updated;
-    });
+    if (!draft || draft.status === 'sent') return;
+    setDrafts(prev => prev.map(d => d.id === draftId ? { ...d, status: 'sent', sent_at: new Date() } : d));
+    setThreads(prev => prev.map(t => t.id === selectedThreadId ? { ...t, status: 'approved', has_draft: false } : t));
     setNotification({ message: '✨ Reply sent successfully!', type: 'success' });
-    handleCreditsUsed(2); // Deduct credits for sending
-    
-    // Dispatch storage event to sync with Tinder
+    handleCreditsUsed(2);
     window.dispatchEvent(new Event('storage'));
   };
 
   const handleReject = (draftId: string) => {
-    const draft = drafts.find(d => d.id === draftId);
-    if (!draft || draft.status === 'sent') return; // Prevent re-rejecting sent drafts
-
-    setDrafts(prev => {
-      const updated = prev.map(d => d.id === draftId ? { ...d, status: 'rejected' as const } : d);
-      saveDrafts(updated);
-      return updated;
-    });
-    setThreads(prev => {
-      const updated = prev.map(t => t.id === selectedThreadId ? { ...t, has_draft: false, status: 'rejected' as EmailThread['status'] } : t);
-      saveThreads(updated);
-      return updated;
-    });
-    setNotification({ message: 'Thread rejected and archived', type: 'error' });
-    
-    // Dispatch storage event to sync with Tinder
+    setDrafts(prev => prev.filter(d => d.id !== draftId));
+    setThreads(prev => prev.map(t => t.id === selectedThreadId ? { ...t, status: 'rejected', has_draft: false } : t));
+    setNotification({ message: 'Reply rejected and deleted', type: 'error' });
     window.dispatchEvent(new Event('storage'));
   };
 
   const handleGenerateReply = async () => {
     if (!selectedThreadId || !selectedThread) return;
-    
-    // For already processed threads, allow creating new replies but remove the existing draft first
-    if (selectedThread.status === 'approved' || selectedThread.status === 'rejected') {
-      // Remove any existing drafts for this thread and allow new generation
-      setDrafts(prev => {
-        const updated = prev.filter(d => d.thread_id !== selectedThreadId);
-        saveDrafts(updated);
-        return updated;
-      });
-    } else {
-      // For active threads, check if a pending draft already exists
-      const existingDraft = drafts.find(d => d.thread_id === selectedThreadId && d.status === 'pending');
-      if (existingDraft) {
-        // Allow regeneration by removing the existing draft
-        setDrafts(prev => {
-          const updated = prev.filter(d => d.id !== existingDraft.id);
-          saveDrafts(updated);
-          return updated;
-        });
-      }
-    }
-    
+    setDrafts(prev => prev.filter(d => !(d.thread_id === selectedThreadId && d.status === 'pending')));
     if (credits < 5) {
       setNotification({ message: 'Insufficient credits to generate reply', type: 'error' });
       return;
     }
-    
     setNotification({ message: 'Generating AI reply...', type: 'success' });
-    
     try {
       const result = await openaiService.generateReply(selectedThread, threadMessages);
-      
       if (result.success && result.data) {
         const newDraft: DraftReply = {
           id: `draft_${Date.now()}`,
@@ -220,22 +176,12 @@ export default function HomePage() {
           user_id: 'user_jack',
           body: result.data,
           generated_at: new Date(),
-          status: 'pending' as const,
+          status: 'pending',
           created_at: new Date(),
           updated_at: new Date(),
         };
-        
-        setDrafts(prev => {
-          const updated = [...prev.filter(d => d.thread_id !== selectedThreadId || d.status !== 'pending'), newDraft];
-          saveDrafts(updated);
-          return updated;
-        });
-        setThreads(prev => {
-          const updated = prev.map(t => t.id === selectedThreadId ? { ...t, has_draft: true } : t);
-          saveThreads(updated);
-          return updated;
-        });
-        
+        setDrafts(prev => [...prev, newDraft]);
+        setThreads(prev => prev.map(t => t.id === selectedThreadId ? { ...t, has_draft: true, status: 'pending' as EmailThread['status'] } : t));
         if (result.usage) {
           const creditsUsed = Math.ceil(result.usage.tokens / 100);
           handleCreditsUsed(creditsUsed, result.usage.tokens, result.usage.cost);
@@ -243,14 +189,11 @@ export default function HomePage() {
         } else {
           setNotification({ message: '✨ AI reply generated!', type: 'success' });
         }
-        
-        // Dispatch storage event to sync with Tinder
         window.dispatchEvent(new Event('storage'));
       } else {
         setNotification({ message: result.error || 'Failed to generate reply', type: 'error' });
       }
     } catch (error) {
-      console.error('Failed to generate reply:', error);
       setNotification({ message: 'Failed to generate reply. Please try again.', type: 'error' });
     }
   };

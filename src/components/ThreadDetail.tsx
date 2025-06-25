@@ -400,104 +400,123 @@ export default function ThreadDetail({
                 </div>
               )}
               
-              <div className="flex gap-2 flex-wrap">
-                {isEditing ? (
-                  <>
-                    <Button 
-                      className="bg-green-600 text-white px-4 py-2 rounded font-semibold hover:bg-green-700 transition"
-                      onClick={() => {
-                        // Update the draft body and save
-                        if (draft && editedBody !== draft.body) {
-                          onUpdateDraft(draft.id, editedBody);
-                          onNotify('Reply updated successfully!', 'success');
-                        }
-                        setIsEditing(false);
-                      }}
-                    >
-                      ✅ Save Changes
-                    </Button>
-                    <Button 
-                      className="bg-gray-500 text-white px-4 py-2 rounded font-semibold hover:bg-gray-600 transition"
-                      onClick={() => {
-                        setIsEditing(false);
-                        setEditedBody(draft.body);
-                      }}
-                    >
-                      Cancel
-                    </Button>
-                    <Button 
-                      className="bg-purple-600 text-white px-3 py-2 rounded font-semibold hover:bg-purple-700 transition text-sm"
-                      onClick={() => setShowImproveChat(!showImproveChat)}
-                    >
-                      ✨ Improve with AI
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    <Button
-                      onClick={handleApprove}
-                      disabled={isSending || draft.status === 'sent'}
-                      className="bg-green-600 hover:bg-green-700"
-                    >
-                      {isSending ? (
-                        <>
-                          <span className="animate-pulse">Sending...</span>
-                        </>
-                      ) : draft.status === 'sent' ? (
-                        'Sent ✓'
-                      ) : (
-                        'Approve & Send'
-                      )}
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      onClick={handleReject}
-                      disabled={isSending || draft.status === 'sent'}
-                    >
-                      Reject & Archive
-                    </Button>
-                    <Button 
-                      className="bg-yellow-600 text-white px-4 py-2 rounded font-semibold hover:bg-yellow-700 transition"
-                      onClick={() => {
-                        setIsEditing(true);
-                        setEditedBody(draft.body);
-                      }}
-                      disabled={isSending || draft.status === 'sent'}
-                    >
-                      ✏️ Edit Reply
-                    </Button>
-                    <Button 
-                      className="bg-purple-600 text-white px-3 py-2 rounded font-semibold hover:bg-purple-700 transition text-sm"
-                      onClick={() => setShowImproveChat(!showImproveChat)}
-                    >
-                      ✨ Improve with AI
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={handleGenerateReply}
-                      disabled={isSending || isGenerating || draft.status === 'sent'}
-                      className="w-9 h-9"
-                    >
-                      {isGenerating ? (
-                        <div className="animate-spin h-4 w-4 border-2 border-blue-600 border-t-transparent rounded-full" />
-                      ) : (
-                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                        </svg>
-                      )}
-                    </Button>
-                    {hasStreamedReply && !streamingReply.startsWith('❌') && (
+              {/* Only show action buttons for pending drafts */}
+              {draft.status === 'pending' && (
+                <div className="flex gap-2 flex-wrap">
+                  {isEditing ? (
+                    <>
                       <Button 
-                        className="bg-green-600 text-white px-3 py-2 rounded font-semibold hover:bg-green-700 transition text-sm"
-                        onClick={handleAcceptImprovement}
+                        className="bg-green-600 text-white px-4 py-2 rounded font-semibold hover:bg-green-700 transition"
+                        onClick={() => {
+                          if (draft && editedBody !== draft.body) {
+                            onUpdateDraft(draft.id, editedBody);
+                            onNotify('Reply updated successfully!', 'success');
+                          }
+                          setIsEditing(false);
+                        }}
                       >
-                        ✅ Accept Improvement
+                        ✅ Save Changes
                       </Button>
+                      <Button 
+                        className="bg-gray-500 text-white px-4 py-2 rounded font-semibold hover:bg-gray-600 transition"
+                        onClick={() => {
+                          setIsEditing(false);
+                          setEditedBody(draft.body);
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                      <Button 
+                        className="bg-purple-600 text-white px-3 py-2 rounded font-semibold hover:bg-purple-700 transition text-sm"
+                        onClick={() => setShowImproveChat(!showImproveChat)}
+                      >
+                        ✨ Improve with AI
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <Button
+                        onClick={handleApprove}
+                        disabled={isSending}
+                        className="bg-green-600 hover:bg-green-700"
+                      >
+                        {isSending ? (
+                          <>
+                            <span className="animate-pulse">Sending...</span>
+                          </>
+                        ) : (
+                          'Approve & Send'
+                        )}
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        onClick={handleReject}
+                        disabled={isSending}
+                      >
+                        Reject & Archive
+                      </Button>
+                      <Button 
+                        className="bg-yellow-600 text-white px-4 py-2 rounded font-semibold hover:bg-yellow-700 transition"
+                        onClick={() => {
+                          setIsEditing(true);
+                          setEditedBody(draft.body);
+                        }}
+                        disabled={isSending}
+                      >
+                        ✏️ Edit Reply
+                      </Button>
+                      <Button 
+                        className="bg-purple-600 text-white px-3 py-2 rounded font-semibold hover:bg-purple-700 transition text-sm"
+                        onClick={() => setShowImproveChat(!showImproveChat)}
+                      >
+                        ✨ Improve with AI
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={handleGenerateReply}
+                        disabled={isSending || isGenerating}
+                        className="w-9 h-9"
+                      >
+                        {isGenerating ? (
+                          <div className="animate-spin h-4 w-4 border-2 border-blue-600 border-t-transparent rounded-full" />
+                        ) : (
+                          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                          </svg>
+                        )}
+                      </Button>
+                      {hasStreamedReply && !streamingReply.startsWith('❌') && (
+                        <Button 
+                          className="bg-green-600 text-white px-3 py-2 rounded font-semibold hover:bg-green-700 transition text-sm"
+                          onClick={handleAcceptImprovement}
+                        >
+                          ✅ Accept Improvement
+                        </Button>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+              {/* Show only 'New Reply' for sent/rejected */}
+              {(draft.status === 'sent' || draft.status === 'rejected') && (
+                <div className="flex gap-2 mt-4">
+                  <Button
+                    onClick={handleGenerateReply}
+                    disabled={isGenerating}
+                    className="bg-blue-600 hover:bg-blue-700"
+                  >
+                    {isGenerating ? (
+                      <>
+                        <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full mr-2" />
+                        Generating...
+                      </>
+                    ) : (
+                      '🔄 New Reply'
                     )}
-                  </>
-                )}
-              </div>
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
         )}
@@ -505,29 +524,48 @@ export default function ThreadDetail({
         {!isCollapsed && !draft && (
           <Card className="border-dashed">
             <CardContent className="py-8 text-center">
-              <div className="flex items-center justify-center gap-2">
-                <Button 
-                  className="bg-yellow-600 text-white px-4 py-2 rounded font-semibold hover:bg-yellow-700 transition"
-                  size="sm" 
-                  variant="outline"
-                >
-                  ✏️ Edit
-                </Button>
-                <Button
-                  onClick={handleGenerateReply}
-                  disabled={isGenerating}
-                  size="icon"
-                  className="w-10 h-10"
-                >
-                  {isGenerating ? (
-                    <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full" />
-                  ) : (
-                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                  )}
-                </Button>
-              </div>
+              {thread.status === 'rejected' ? (
+                <div className="flex items-center justify-center gap-2">
+                  <Button
+                    onClick={handleGenerateReply}
+                    disabled={isGenerating}
+                    className="bg-blue-600 hover:bg-blue-700"
+                  >
+                    {isGenerating ? (
+                      <>
+                        <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full mr-2" />
+                        Generating...
+                      </>
+                    ) : (
+                      '🔄 New Reply'
+                    )}
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center justify-center gap-2">
+                  <Button 
+                    className="bg-yellow-600 text-white px-4 py-2 rounded font-semibold hover:bg-yellow-700 transition"
+                    size="sm" 
+                    variant="outline"
+                  >
+                    ✏️ Edit
+                  </Button>
+                  <Button
+                    onClick={handleGenerateReply}
+                    disabled={isGenerating}
+                    size="icon"
+                    className="w-10 h-10"
+                  >
+                    {isGenerating ? (
+                      <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full" />
+                    ) : (
+                      <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                    )}
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
         )}
