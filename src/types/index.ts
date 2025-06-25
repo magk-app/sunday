@@ -251,4 +251,60 @@ export interface AuthSession {
   access_token: string;
   refresh_token: string;
   expires_at: Date;
+}
+
+export interface EmailThread {
+  id: string;
+  user_id: string;
+  subject: string;
+  participants: string[];
+  last_message_at: Date;
+  message_count: number;
+  has_draft: boolean;
+  status: 'active' | 'archived' | 'snoozed';
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface DraftReply {
+  id: string;
+  thread_id: string;
+  user_id: string;
+  body: string;
+  generated_at: Date;
+  status: 'pending' | 'approved' | 'rejected' | 'sent';
+  sent_at?: Date;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface Person {
+  id: string;
+  user_id: string;
+  email: string;
+  name: string;
+  company?: string;
+  role?: string;
+  notes?: string;
+  last_contacted?: Date;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface Project {
+  id: string;
+  user_id: string;
+  name: string;
+  description?: string;
+  status: 'active' | 'completed' | 'on_hold';
+  participants: string[]; // person IDs
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface PersonProjectRelation {
+  person_id: string;
+  project_id: string;
+  role?: string;
+  created_at: Date;
 } 
