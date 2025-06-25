@@ -88,13 +88,13 @@ class OpenAIService {
     }
   }
 
-  async summarizeThread(thread: EmailThread, messages: Email[]): Promise<OpenAIResponse<string>> {
+  async summarizeThread(thread: EmailThread, messages: Email[], detailed: boolean = false): Promise<OpenAIResponse<string>> {
     try {
       const conversationText = messages.map(msg => 
         `From: ${msg.sender}\nDate: ${msg.date}\n${msg.body}`
       ).join('\n\n---\n\n');
 
-      const prompt = `Summarize this email thread in 1-2 concise sentences focusing on the main topic and current status:
+      const prompt = `${detailed ? 'Provide a comprehensive multi-paragraph executive summary that covers every key message, decisions made, open questions, and next steps. Keep it factual, avoid speculation, and limit to ~4–6 short paragraphs.' : 'Summarize this email thread in 1-2 concise sentences focusing on the main topic and current status:'}
 
 Subject: ${thread.subject}
 Participants: ${thread.participants.join(', ')}
@@ -114,7 +114,7 @@ Summary:`;
           },
           { role: 'user', content: prompt },
         ],
-        max_tokens: 120,
+        max_tokens: detailed ? 300 : 120,
         temperature: 0.3,
       });
 
