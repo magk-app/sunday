@@ -15,7 +15,7 @@ export default function ThreadList({ threads, selectedId, onSelect }: ThreadList
     const now = new Date();
     const diff = now.getTime() - date.getTime();
     const hours = diff / (1000 * 60 * 60);
-    
+
     if (hours < 1) return 'Just now';
     if (hours < 24) return `${Math.floor(hours)}h ago`;
     if (hours < 168) return `${Math.floor(hours / 24)}d ago`;
@@ -43,7 +43,7 @@ export default function ThreadList({ threads, selectedId, onSelect }: ThreadList
                   {formatDate(thread.last_message_at)}
                 </span>
               </div>
-              
+
               <div className="flex items-center gap-2 mb-2">
                 <div className="flex -space-x-2">
                   {thread.participants.slice(0, 3).map((email, idx) => (
@@ -63,17 +63,12 @@ export default function ThreadList({ threads, selectedId, onSelect }: ThreadList
                   {thread.message_count} messages
                 </span>
               </div>
-              
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-gray-600 line-clamp-2 flex-1">
-                  Last message preview would go here...
-                </p>
-                {thread.has_draft && (
-                  <Badge className="ml-2 bg-amber-100 text-amber-800">
-                    Draft
-                  </Badge>
-                )}
-              </div>
+
+              {thread.has_draft && (
+                <Badge className="bg-amber-100 text-amber-800">
+                  Draft
+                </Badge>
+              )}
             </Card>
           ))}
         </div>

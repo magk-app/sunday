@@ -262,6 +262,7 @@ export interface EmailThread {
   message_count: number;
   has_draft: boolean;
   status: 'active' | 'archived' | 'snoozed';
+  summary?: string;
   created_at: Date;
   updated_at: Date;
 }

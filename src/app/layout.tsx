@@ -1,4 +1,5 @@
 import '../app/globals.css';
+import NavBar from '../components/NavBar';
 
 export const metadata = {
   title: 'SundayL',
@@ -12,7 +13,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body className="pt-16">
+        <NavBar />
+        {children}
+      </body>
     </html>
   )
 }

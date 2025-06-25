@@ -2,60 +2,95 @@
 import React, { useState } from 'react';
 import { mockThreads, mockDraftReplies, mockPeople, mockProjects, getThreadMessages } from '../mock/threads';
 import Sidebar from '../components/Sidebar';
-import Header from '../components/Header';
 import ThreadList from '../components/ThreadList';
 import ThreadDetail from '../components/ThreadDetail';
 import StatusBar from '../components/StatusBar';
 import Notification from '../components/Notification';
 import type { EmailThread, DraftReply } from '../types';
+import { openaiService } from '../lib/openai-service';
 
 type FolderKey = 'inbox' | 'important' | 'approved' | 'rejected';
 
 export default function HomePage() {
-  const [threads] = useState<EmailThread[]>(mockThreads);
+  const [threads, setThreads] = useState<EmailThread[]>(mockThreads);
   const [drafts, setDrafts] = useState<DraftReply[]>(mockDraftReplies);
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(threads[0]?.id || null);
   const [selectedFolder, setSelectedFolder] = useState<FolderKey>('inbox');
   const [credits, setCredits] = useState<number>(100);
+  const [totalCreditsUsed, setTotalCreditsUsed] = useState<number>(0);
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   const selectedThread = threads.find(t => t.id === selectedThreadId) || null;
   const threadMessages = selectedThread ? getThreadMessages(selectedThread.id) : [];
   const currentDraft = drafts.find(d => d.thread_id === selectedThreadId && d.status === 'pending') || null;
 
+  const visibleThreads = threads.filter(t => {
+    if (selectedFolder === 'inbox') return t.status === 'active';
+    if (selectedFolder === 'approved') return t.status === 'approved';
+    if (selectedFolder === 'rejected') return t.status === 'rejected';
+    return true;
+  });
+
+  const handleCreditsUsed = (amount: number) => {
+    setCredits(prev => Math.max(0, prev - amount));
+    setTotalCreditsUsed(prev => prev + amount);
+  };
+
   const handleApprove = (draftId: string) => {
     setDrafts(prev => prev.map(d => d.id === draftId ? { ...d, status: 'sent', sent_at: new Date() } : d));
+    setThreads(prev => prev.map(t => t.id === selectedThreadId ? { ...t, has_draft: false, status: 'approved' } : t));
     setNotification({ message: '✨ Reply sent successfully!', type: 'success' });
-    setCredits(c => c - 5); // Deduct credits for sending
+    handleCreditsUsed(2); // Deduct credits for sending
   };
 
   const handleReject = (draftId: string) => {
     setDrafts(prev => prev.map(d => d.id === draftId ? { ...d, status: 'rejected' } : d));
+    setThreads(prev => prev.map(t => t.id === selectedThreadId ? { ...t, has_draft: false, status: 'rejected' } : t));
     setNotification({ message: 'Draft rejected and archived', type: 'error' });
   };
 
   const handleGenerateReply = async () => {
-    if (!selectedThreadId) return;
+    if (!selectedThreadId || !selectedThread) return;
     
-    setCredits(c => c - 2); // Deduct credits for generation
+    if (credits < 5) {
+      setNotification({ message: 'Insufficient credits to generate reply', type: 'error' });
+      return;
+    }
+    
     setNotification({ message: 'Generating AI reply...', type: 'success' });
     
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    const newDraft: DraftReply = {
-      id: `draft_${Date.now()}`,
-      thread_id: selectedThreadId,
-      user_id: 'user_jack',
-      body: `Thank you for your message. I've reviewed the thread and here's my response:\n\n[AI-generated content based on conversation context]\n\nBest regards,\nJack`,
-      generated_at: new Date(),
-      status: 'pending',
-      created_at: new Date(),
-      updated_at: new Date(),
-    };
-    
-    setDrafts(prev => [...prev.filter(d => d.thread_id !== selectedThreadId || d.status !== 'pending'), newDraft]);
-    setNotification({ message: '✨ AI reply generated!', type: 'success' });
+    try {
+      const result = await openaiService.generateReply(selectedThread, threadMessages);
+      
+      if (result.success && result.data) {
+        const newDraft: DraftReply = {
+          id: `draft_${Date.now()}`,
+          thread_id: selectedThreadId,
+          user_id: 'user_jack',
+          body: result.data,
+          generated_at: new Date(),
+          status: 'pending',
+          created_at: new Date(),
+          updated_at: new Date(),
+        };
+        
+        setDrafts(prev => [...prev.filter(d => d.thread_id !== selectedThreadId || d.status !== 'pending'), newDraft]);
+        setThreads(prev => prev.map(t => t.id === selectedThreadId ? { ...t, has_draft: true } : t));
+        
+        if (result.usage) {
+          const creditsUsed = Math.ceil(result.usage.tokens / 100);
+          handleCreditsUsed(creditsUsed);
+          setNotification({ message: `OpenAI accessed ✔️ Tokens: ${result.usage.tokens}, Cost: $${result.usage.cost.toFixed(4)}`, type: 'success' });
+        } else {
+          setNotification({ message: '✨ AI reply generated!', type: 'success' });
+        }
+      } else {
+        setNotification({ message: result.error || 'Failed to generate reply', type: 'error' });
+      }
+    } catch (error) {
+      console.error('Failed to generate reply:', error);
+      setNotification({ message: 'Failed to generate reply. Please try again.', type: 'error' });
+    }
   };
 
   const handleSelectFolder = (key: string) => {
@@ -66,10 +101,13 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      <Header />
       <main className="flex flex-1 overflow-hidden">
         <Sidebar selected={selectedFolder} onSelect={handleSelectFolder} />
-        <ThreadList threads={threads} selectedId={selectedThreadId} onSelect={setSelectedThreadId} />
+        <ThreadList 
+          threads={visibleThreads} 
+          selectedId={selectedThreadId} 
+          onSelect={setSelectedThreadId}
+        />
         <ThreadDetail
           thread={selectedThread}
           messages={threadMessages}
@@ -79,9 +117,15 @@ export default function HomePage() {
           onApprove={handleApprove}
           onReject={handleReject}
           onGenerateReply={handleGenerateReply}
+          onNotify={(message: string, type: 'success' | 'error') => setNotification({ message, type })}
+          onCreditsUsed={handleCreditsUsed}
         />
       </main>
-      <StatusBar status={currentDraft?.status || 'Ready'} credits={credits} />
+      <StatusBar 
+        status={currentDraft?.status || 'Ready'} 
+        credits={credits}
+        totalUsed={totalCreditsUsed}
+      />
       {notification && (
         <Notification message={notification.message} type={notification.type} onClose={() => setNotification(null)} />
       )}
