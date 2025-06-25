@@ -287,6 +287,36 @@ Tasks:
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
   }
+
+  async analyzeThreadFull(thread: EmailThread, messages: Email[]): Promise<OpenAIResponse<{ summary: string; people: string[]; projects: string[] }>> {
+    try {
+      const conversation = messages.map(m => `${m.sender}: ${m.body}`).join("\n---\n");
+      const prompt = `You are an assistant that extracts structured knowledge from email threads.\nReturn STRICTLY valid JSON with keys summary, people (array of names or emails) and projects (array of project names).\n\nThread subject: ${thread.subject}\n\nConversation:\n${conversation}\n\nJSON:`;
+
+      const model = 'gpt-4o';
+      const data = await this.makeRequest('/chat/completions', {
+        model,
+        messages: [
+          { role: 'system', content: 'Return concise JSON only.' },
+          { role: 'user', content: prompt },
+        ],
+        max_tokens: 300,
+        temperature: 0,
+      });
+
+      let json;
+      try {
+        json = JSON.parse(data.choices?.[0]?.message?.content || '{}');
+      } catch {
+        return { success: false, error: 'Failed to parse JSON' };
+      }
+
+      const cost = this.calculateCost(data.usage, model);
+      return { success: true, data: json, usage: { tokens: data.usage.total_tokens, cost, operation: 'analyze' } };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  }
 }
 
 export const openaiService = new OpenAIService(); 

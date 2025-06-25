@@ -17,7 +17,7 @@ interface ThreadDetailProps {
   onReject: (draftId: string) => void;
   onGenerateReply: () => void;
   onNotify: (message: string, type: 'success' | 'error') => void;
-  onCreditsUsed: (amount: number) => void;
+  onCreditsUsed: (amount: number, tokens: number, cost: number) => void;
   onSummaryGenerated: (threadId: string, summary: string, importance?: 'urgent' | 'high' | 'medium' | 'low') => void;
 }
 
@@ -79,7 +79,7 @@ export default function ThreadDetail({
         onSummaryGenerated(thread.id, result.data, importance as any);
         if (result.usage) {
           const creditsUsed = Math.ceil(result.usage.tokens / 100);
-          onCreditsUsed(creditsUsed);
+          onCreditsUsed(creditsUsed, result.usage.tokens, result.usage.cost);
           onNotify(`OpenAI accessed ✔️ Tokens: ${result.usage.tokens}, Cost: $${result.usage.cost.toFixed(4)}`, 'success');
         }
       } else {
@@ -111,14 +111,31 @@ export default function ThreadDetail({
     if (!thread) return;
     setIsSavingKB(true);
     try {
-      // For demo: we pretend to save. In future, call backend.
-      await new Promise(r => setTimeout(r, 1000));
-      onNotify('Thread saved to knowledge base (mock)', 'success');
+      const res = await openaiService.analyzeThreadFull(thread, messages);
+      if (!res.success || !res.data) throw new Error(res.error || 'AI error');
+      // Persist to localStorage knowledge arrays
+      const people = JSON.parse(localStorage.getItem('kb_people') || '[]');
+      const projects = JSON.parse(localStorage.getItem('kb_projects') || '[]');
+      const newPeople = [...people, ...res.data.people.filter((p: string) => !people.includes(p))];
+      const newProjects = [...projects, ...res.data.projects.filter((p: string) => !projects.includes(p))];
+      localStorage.setItem('kb_people', JSON.stringify(newPeople));
+      localStorage.setItem('kb_projects', JSON.stringify(newProjects));
+      onNotify('Thread saved to knowledge base ✔️', 'success');
     } catch {
       onNotify('Failed to save to knowledge base', 'error');
     } finally {
       setIsSavingKB(false);
     }
+  };
+
+  const handleReject = () => {
+    if (!thread) return;
+    onReject(thread.id);
+  };
+
+  const toggleImportant = () => {
+    // This demo just notifies; in real app mutate store
+    onNotify(thread.important ? 'Removed from important' : 'Marked as important', 'success');
   };
 
   return (
@@ -253,7 +270,7 @@ export default function ThreadDetail({
                 </Button>
                 <Button
                   variant="destructive"
-                  onClick={() => onReject(draft.id)}
+                  onClick={handleReject}
                   disabled={isSending || draft.status === 'sent'}
                 >
                   Reject & Archive

@@ -3,6 +3,7 @@ import type { EmailThread } from '../types';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
 import { Avatar } from './ui/avatar';
+import { StarIcon } from '@heroicons/react/24/solid';
 
 interface ThreadListProps {
   threads: EmailThread[];
@@ -81,6 +82,10 @@ export default function ThreadList({ threads, selectedId, onSelect }: ThreadList
                 {thread.summary && (
                   <Badge variant="outline" className="text-xs">AI</Badge>
                 )}
+                {thread.status !== 'pending' && (
+                  <Badge>{thread.status}</Badge>
+                )}
+                {thread.important && <StarIcon className="text-yellow-400 ml-1" />}
               </div>
             </Card>
           ))}

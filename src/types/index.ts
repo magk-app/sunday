@@ -261,8 +261,9 @@ export interface EmailThread {
   last_message_at: Date;
   message_count: number;
   has_draft: boolean;
-  status: 'active' | 'archived' | 'snoozed';
+  status: 'pending' | 'approved' | 'rejected' | 'active' | 'archived' | 'snoozed';
   importance?: 'urgent' | 'high' | 'medium' | 'low';
+  important?: boolean;
   summary?: string;
   created_at: Date;
   updated_at: Date;
