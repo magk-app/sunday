@@ -1,114 +1,101 @@
 "use client";
 import React, { useState } from 'react';
 import { mockEmails } from '../mock/emails';
+import Sidebar from '../components/Sidebar';
+import Header from '../components/Header';
+import EmailList from '../components/EmailList';
+import EmailDetail from '../components/EmailDetail';
+import TaskList from '../components/TaskList';
+import StatusBar from '../components/StatusBar';
+import Notification from '../components/Notification';
+import type { Email, Task } from '../types';
+import { TaskStatus, TaskPriority } from '../types';
 
-interface Email {
-  id: string;
-  sender: string;
-  recipients: string[];
-  subject: string;
-  snippet: string;
-  body: string;
-  date: string;
-  importance: 'high' | 'medium' | 'low';
-  status: 'pending' | 'approved' | 'rejected';
+// Mock AI task extraction from email body
+function extractTasksFromEmail(email: Email): Task[] {
+  // For demo, extract lines starting with "- [ ]" as tasks
+  const lines = email.body.split('\n');
+  return lines
+    .filter((line) => line.trim().startsWith('- [ ]'))
+    .map((line, idx) => ({
+      id: `${email.id}_task_${idx}`,
+      email_id: email.id,
+      user_id: email.user_id,
+      title: line.replace('- [ ]', '').trim() || 'Untitled Task',
+      description: '',
+      status: TaskStatus.TODO,
+      priority: TaskPriority.MEDIUM,
+      due_date: null,
+      created_at: new Date(),
+      updated_at: new Date(),
+    }));
 }
 
-const statusColors = {
-  pending: 'bg-yellow-100 text-yellow-800',
-  approved: 'bg-green-100 text-green-800',
-  rejected: 'bg-red-100 text-red-800',
+type FolderKey = 'inbox' | 'important' | 'approved' | 'rejected';
+const folderFilters: Record<FolderKey, (e: Email) => boolean> = {
+  inbox: (e: Email) => e.status === 'pending',
+  important: (e: Email) => e.importance === 'high',
+  approved: (e: Email) => e.status === 'approved',
+  rejected: (e: Email) => e.status === 'rejected',
 };
 
 export default function HomePage() {
   const [emails, setEmails] = useState<Email[]>(mockEmails);
   const [selectedId, setSelectedId] = useState<string | null>(emails[0]?.id || null);
-  const selectedEmail = emails.find((e) => e.id === selectedId);
+  const [selectedFolder, setSelectedFolder] = useState<FolderKey>('inbox');
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [credits, setCredits] = useState<number>(100);
+  const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  // Filter emails by folder
+  const filteredEmails = emails.filter(folderFilters[selectedFolder]);
+  const selectedEmail = emails.find((e) => e.id === selectedId) || filteredEmails[0] || null;
+
+  // Extract tasks for selected email
+  React.useEffect(() => {
+    if (selectedEmail) {
+      // Simulate API credit usage and mock AI extraction
+      setCredits((c) => c - 1);
+      setTasks(extractTasksFromEmail(selectedEmail));
+    } else {
+      setTasks([]);
+    }
+  }, [selectedEmail]);
 
   const handleApprove = (id: string) => {
     setEmails((prev) => prev.map((e) => e.id === id ? { ...e, status: 'approved' } : e));
+    setNotification({ message: 'Email approved!', type: 'success' });
   };
   const handleReject = (id: string) => {
     setEmails((prev) => prev.map((e) => e.id === id ? { ...e, status: 'rejected' } : e));
+    setNotification({ message: 'Email rejected.', type: 'error' });
+  };
+  const handleCompleteTask = (id: string) => {
+    setTasks((prev) => prev.map((t) => t.id === id ? { ...t, status: TaskStatus.COMPLETED } : t));
+    setNotification({ message: 'Task completed!', type: 'success' });
+  };
+
+  const handleSelectFolder = (key: string) => {
+    if (["inbox", "important", "approved", "rejected"].includes(key)) {
+      setSelectedFolder(key as FolderKey);
+    }
   };
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      <header className="flex items-center justify-between px-6 py-4 bg-white shadow">
-        <h1 className="text-2xl font-bold text-blue-700">SundayL</h1>
-        <div className="flex gap-2">
-          <input className="border rounded px-2 py-1" placeholder="Search (coming soon)" />
-        </div>
-      </header>
+      <Header />
       <main className="flex flex-1 overflow-hidden">
-        {/* Sidebar */}
-        <aside className="w-48 bg-white border-r p-4 hidden md:block">
-          <nav className="space-y-2">
-            <div className="font-semibold text-gray-700">Folders</div>
-            <ul className="space-y-1 mt-2">
-              <li className="text-blue-600 font-medium">Inbox</li>
-              <li>Important</li>
-              <li>Approved</li>
-              <li>Rejected</li>
-            </ul>
-          </nav>
-        </aside>
-        {/* Email List */}
-        <section className="w-full md:w-1/3 border-r bg-white overflow-y-auto">
-          <ul>
-            {emails.map((email) => (
-              <li
-                key={email.id}
-                className={`cursor-pointer px-4 py-3 border-b hover:bg-blue-50 ${selectedId === email.id ? 'bg-blue-100' : ''}`}
-                onClick={() => setSelectedId(email.id)}
-              >
-                <div className="flex justify-between items-center">
-                  <span className="font-semibold">{email.sender}</span>
-                  <span className={`text-xs px-2 py-0.5 rounded ${statusColors[email.status]}`}>{email.status}</span>
-                </div>
-                <div className="text-sm text-gray-700 truncate">{email.subject}</div>
-                <div className="text-xs text-gray-500">{new Date(email.date).toLocaleString()}</div>
-                <div className="text-xs text-gray-400">{email.snippet}</div>
-              </li>
-            ))}
-          </ul>
-        </section>
-        {/* Email Detail */}
+        <Sidebar selected={selectedFolder} onSelect={handleSelectFolder} />
+        <EmailList emails={filteredEmails} selectedId={selectedId} onSelect={setSelectedId} />
         <section className="flex-1 p-6 overflow-y-auto">
-          {selectedEmail ? (
-            <div className="max-w-2xl mx-auto bg-white rounded shadow p-6">
-              <div className="flex justify-between items-center mb-2">
-                <div>
-                  <div className="text-lg font-bold">{selectedEmail.subject}</div>
-                  <div className="text-sm text-gray-600">From: {selectedEmail.sender}</div>
-                  <div className="text-xs text-gray-400">To: {selectedEmail.recipients.join(', ')}</div>
-                  <div className="text-xs text-gray-400">{new Date(selectedEmail.date).toLocaleString()}</div>
-                </div>
-                <span className={`text-xs px-2 py-0.5 rounded ${statusColors[selectedEmail.status]}`}>{selectedEmail.status}</span>
-              </div>
-              <div className="my-4 whitespace-pre-line text-gray-800">{selectedEmail.body}</div>
-              <div className="flex gap-2 mt-4">
-                <button
-                  className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 disabled:opacity-50"
-                  onClick={() => handleApprove(selectedEmail.id)}
-                  disabled={selectedEmail.status !== 'pending'}
-                >
-                  Approve
-                </button>
-                <button
-                  className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 disabled:opacity-50"
-                  onClick={() => handleReject(selectedEmail.id)}
-                  disabled={selectedEmail.status !== 'pending'}
-                >
-                  Reject
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="text-gray-500">Select an email to view details.</div>
-          )}
+          <EmailDetail email={selectedEmail} onApprove={handleApprove} onReject={handleReject} tasks={tasks} />
+          <TaskList tasks={tasks} onComplete={handleCompleteTask} />
         </section>
       </main>
+      <StatusBar status={selectedEmail?.status || 'N/A'} credits={credits} />
+      {notification && (
+        <Notification message={notification.message} type={notification.type} onClose={() => setNotification(null)} />
+      )}
     </div>
   );
 } 
