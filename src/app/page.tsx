@@ -26,8 +26,8 @@ export default function HomePage() {
 
   const visibleThreads = threads.filter(t => {
     if (selectedFolder === 'inbox') return t.status === 'active';
-    if (selectedFolder === 'approved') return t.status === 'approved';
-    if (selectedFolder === 'rejected') return t.status === 'rejected';
+    if (selectedFolder === 'approved') return t.status === ('approved' as any);
+    if (selectedFolder === 'rejected') return t.status === ('rejected' as any);
     return true;
   });
 
@@ -38,14 +38,14 @@ export default function HomePage() {
 
   const handleApprove = (draftId: string) => {
     setDrafts(prev => prev.map(d => d.id === draftId ? { ...d, status: 'sent', sent_at: new Date() } : d));
-    setThreads(prev => prev.map(t => t.id === selectedThreadId ? { ...t, has_draft: false, status: 'approved' } : t));
+    setThreads(prev => prev.map(t => t.id === selectedThreadId ? { ...t, has_draft: false, status: 'approved' as EmailThread['status'] } : t));
     setNotification({ message: '✨ Reply sent successfully!', type: 'success' });
     handleCreditsUsed(2); // Deduct credits for sending
   };
 
   const handleReject = (draftId: string) => {
     setDrafts(prev => prev.map(d => d.id === draftId ? { ...d, status: 'rejected' } : d));
-    setThreads(prev => prev.map(t => t.id === selectedThreadId ? { ...t, has_draft: false, status: 'rejected' } : t));
+    setThreads(prev => prev.map(t => t.id === selectedThreadId ? { ...t, has_draft: false, status: 'rejected' as EmailThread['status'] } : t));
     setNotification({ message: 'Draft rejected and archived', type: 'error' });
   };
 

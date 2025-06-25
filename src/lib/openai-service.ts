@@ -13,7 +13,7 @@ export interface OpenAIResponse<T = any> {
   usage?: OpenAIUsage;
 }
 
-// Cost per 1k tokens (approximate GPT-3.5-turbo pricing)
+// Cost per 1k tokens (fix this to gpt-4o-mini pricing)
 const COST_PER_1K_TOKENS = {
   input: 0.0015,
   output: 0.002,
@@ -24,13 +24,17 @@ class OpenAIService {
   private baseURL = 'https://api.openai.com/v1';
 
   constructor() {
-    this.apiKey = process.env.NEXT_PUBLIC_OPENAI_API_KEY || '';
+    // Prefer client-safe key if available (development only)
+    this.apiKey = process.env.NEXT_PUBLIC_OPENAI_API_KEY || process.env.OPENAI_API_KEY || '';
   }
 
   private async makeRequest(endpoint: string, body: any): Promise<any> {
     if (!this.apiKey) {
-      throw new Error('OpenAI API key not configured');
+      console.warn('[OpenAIService] Missing API key – attempting request anyway (may fail)');
     }
+
+    console.log(`[OpenAIService] → POST ${endpoint}`);
+    console.log('[OpenAIService] Request body:', body);
 
     const response = await fetch(`${this.baseURL}${endpoint}`, {
       method: 'POST',
@@ -41,12 +45,14 @@ class OpenAIService {
       body: JSON.stringify(body),
     });
 
+    const json = await response.json();
+    console.log(`[OpenAIService] ← Response from ${endpoint}:`, json);
+
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error?.message || 'OpenAI API error');
+      throw new Error(json.error?.message || 'OpenAI API error');
     }
 
-    return response.json();
+    return json;
   }
 
   private calculateCost(usage: any): number {
@@ -72,7 +78,7 @@ ${conversationText}
 Summary:`;
 
       const data = await this.makeRequest('/chat/completions', {
-        model: 'gpt-4o-mini',
+        model: 'gpt-4o',
         messages: [
           { 
             role: 'system', 
@@ -86,6 +92,8 @@ Summary:`;
 
       const summary = data.choices?.[0]?.message?.content?.trim() || 'Unable to generate summary';
       const cost = this.calculateCost(data.usage);
+
+      console.log('[OpenAIService] Generated summary:', summary);
 
       return {
         success: true,
@@ -129,7 +137,7 @@ Generate a reply that:
 Reply:`;
 
       const data = await this.makeRequest('/chat/completions', {
-        model: 'gpt-4o-mini',
+        model: 'gpt-4o',
         messages: [
           { 
             role: 'system', 
@@ -143,6 +151,8 @@ Reply:`;
 
       const reply = data.choices?.[0]?.message?.content?.trim() || 'Unable to generate reply';
       const cost = this.calculateCost(data.usage);
+
+      console.log('[OpenAIService] Generated reply:', reply);
 
       return {
         success: true,
@@ -179,7 +189,7 @@ Tasks:
 - [task 2 if any]`;
 
       const data = await this.makeRequest('/chat/completions', {
-        model: 'gpt-4o-mini',
+        model: 'gpt-4o',
         messages: [
           { 
             role: 'system', 
@@ -192,6 +202,7 @@ Tasks:
       });
 
       const content = data.choices?.[0]?.message?.content || '';
+      console.log('[OpenAIService] Analyze email raw content:', content);
       const [summaryPart, ...taskParts] = content.split(/Tasks?:/i);
       const summary = summaryPart.replace('Summary:', '').trim();
       const tasks = (taskParts.join('').match(/- (.+)/g) || [])
