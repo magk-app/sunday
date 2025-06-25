@@ -31,6 +31,16 @@
 - [ ] Parse emails (subject, sender, body, etc.)
 - [ ] Store emails in Supabase
 - [ ] Display email list in UI (mock/local data for MVP)
+### AI Model Selection & Cost Tracking (TODO)
+- [ ] Update all OpenAI API calls to use centralized `openai-service.ts` for consistency and maintainability.
+- [ ] Use the following models for each feature:
+    - Summarize emails: **gpt-4o-mini** ($0.0005 input / $0.0015 output per 1K tokens)
+    - Generate response: **gpt-4o** ($0.005 input / $0.015 output per 1K tokens)
+    - Save to knowledge base: **gpt-4o** ($0.005 input / $0.015 output per 1K tokens)
+    - Importance classification: **gpt-4o-nano** ($0.00025 input / $0.00075 output per 1K tokens)
+- [ ] Display estimated costs (and 50% discounted "Sunday Surfaces" cost) in **Settings → Usage & Analytics**.
+- [ ] Add a usage dashboard showing: total tokens, estimated $ cost, discounted cost, emails processed, hours saved (5 min per email).
+- [ ] Implement a "Scrape to Knowledge Base" button that ingests the current email/thread and stores AI-enriched metadata.
 
 ### 1.5 UI & Workflow
 - [x] Create UI spec sheet (see `docs/ui-spec.md`)
@@ -320,13 +330,3 @@ sundayl/
 
 0.1.2: **Last Updated**: 2024-12-25: Implemented thread-based UI, AI reply generation, knowledge base, and modern design with shadcn/ui
 
-### AI Model Selection & Cost Tracking (TODO)
-- [ ] Update all OpenAI API calls to use centralized `openai-service.ts` for consistency and maintainability.
-- [ ] Use the following models for each feature:
-    - Summarize emails: **gpt-4o-mini** ($0.0005 input / $0.0015 output per 1K tokens)
-    - Generate response: **gpt-4o** ($0.005 input / $0.015 output per 1K tokens)
-    - Save to knowledge base: **gpt-4o** ($0.005 input / $0.015 output per 1K tokens)
-    - Importance classification: **gpt-4o-nano** ($0.00025 input / $0.00075 output per 1K tokens)
-- [ ] Display estimated costs (and 50% discounted "Sunday Surfaces" cost) in **Settings → Usage & Analytics**.
-- [ ] Add a usage dashboard showing: total tokens, estimated $ cost, discounted cost, emails processed, hours saved (5 min per email).
-- [ ] Implement a "Scrape to Knowledge Base" button that ingests the current email/thread and stores AI-enriched metadata.
