@@ -7,6 +7,8 @@ export default function NavBar() {
       <div className="flex items-center gap-6">
         <Link href="/" className="text-xl font-extrabold text-blue-700">SundayL</Link>
         <Link href="/tasks" className="text-sm font-medium hover:text-blue-700">Tasks</Link>
+        <Link href="/tinder" className="text-sm font-medium hover:text-blue-700">Tinder</Link>
+        <Link href="/settings" className="text-sm font-medium hover:text-blue-700">Settings</Link>
         <Link href="/knowledge" className="text-sm font-medium hover:text-blue-700">Knowledge</Link>
       </div>
       <div className="text-sm text-gray-600">Alpha</div>

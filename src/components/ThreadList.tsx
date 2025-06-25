@@ -10,6 +10,13 @@ interface ThreadListProps {
   onSelect: (id: string) => void;
 }
 
+const importanceColors = {
+  urgent: 'bg-red-600',
+  high: 'bg-orange-500',
+  medium: 'bg-yellow-400',
+  low: 'bg-gray-300',
+};
+
 export default function ThreadList({ threads, selectedId, onSelect }: ThreadListProps) {
   const formatDate = (date: Date) => {
     const now = new Date();
@@ -59,16 +66,22 @@ export default function ThreadList({ threads, selectedId, onSelect }: ThreadList
                     </div>
                   )}
                 </div>
-                <span className="text-xs text-gray-600">
-                  {thread.message_count} messages
+                <span className="text-xs text-gray-600 flex items-center gap-2">
+                  {thread.message_count} msgs
+                  {thread.importance && (
+                    <span className={`inline-block w-2 h-2 rounded-full ${importanceColors[thread.importance]}`}></span>
+                  )}
                 </span>
               </div>
 
-              {thread.has_draft && (
-                <Badge className="bg-amber-100 text-amber-800">
-                  Draft
-                </Badge>
-              )}
+              <div className="flex gap-1 items-center">
+                {thread.has_draft && (
+                  <Badge className="bg-amber-100 text-amber-800">Draft</Badge>
+                )}
+                {thread.summary && (
+                  <Badge variant="outline" className="text-xs">AI</Badge>
+                )}
+              </div>
             </Card>
           ))}
         </div>

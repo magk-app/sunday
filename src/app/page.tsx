@@ -31,9 +31,18 @@ export default function HomePage() {
     return true;
   });
 
-  const handleCreditsUsed = (amount: number) => {
+  const handleCreditsUsed = (amount: number, tokens?: number, cost?: number) => {
     setCredits(prev => Math.max(0, prev - amount));
     setTotalCreditsUsed(prev => prev + amount);
+
+    // Persist usage summary for Settings page
+    if (tokens !== undefined && cost !== undefined) {
+      const prevTokens = Number(localStorage.getItem('usage_tokens') || '0');
+      const prevCost = Number(localStorage.getItem('usage_cost') || '0');
+      localStorage.setItem('usage_tokens', String(prevTokens + tokens));
+      localStorage.setItem('usage_cost', String(prevCost + cost));
+      window.dispatchEvent(new Event('usage-updated'));
+    }
   };
 
   const handleApprove = (draftId: string) => {
@@ -79,7 +88,7 @@ export default function HomePage() {
         
         if (result.usage) {
           const creditsUsed = Math.ceil(result.usage.tokens / 100);
-          handleCreditsUsed(creditsUsed);
+          handleCreditsUsed(creditsUsed, result.usage.tokens, result.usage.cost);
           setNotification({ message: `OpenAI accessed ✔️ Tokens: ${result.usage.tokens}, Cost: $${result.usage.cost.toFixed(4)}`, type: 'success' });
         } else {
           setNotification({ message: '✨ AI reply generated!', type: 'success' });
@@ -91,6 +100,10 @@ export default function HomePage() {
       console.error('Failed to generate reply:', error);
       setNotification({ message: 'Failed to generate reply. Please try again.', type: 'error' });
     }
+  };
+
+  const handleSummaryGenerated = (threadId: string, summary: string, importance?: 'urgent' | 'high' | 'medium' | 'low') => {
+    setThreads(prev => prev.map(t => t.id === threadId ? { ...t, summary, importance } : t));
   };
 
   const handleSelectFolder = (key: string) => {
@@ -119,6 +132,7 @@ export default function HomePage() {
           onGenerateReply={handleGenerateReply}
           onNotify={(message: string, type: 'success' | 'error') => setNotification({ message, type })}
           onCreditsUsed={handleCreditsUsed}
+          onSummaryGenerated={handleSummaryGenerated}
         />
       </main>
       <StatusBar 

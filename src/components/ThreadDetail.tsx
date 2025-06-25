@@ -18,6 +18,7 @@ interface ThreadDetailProps {
   onGenerateReply: () => void;
   onNotify: (message: string, type: 'success' | 'error') => void;
   onCreditsUsed: (amount: number) => void;
+  onSummaryGenerated: (threadId: string, summary: string, importance?: 'urgent' | 'high' | 'medium' | 'low') => void;
 }
 
 export default function ThreadDetail({
@@ -31,16 +32,18 @@ export default function ThreadDetail({
   onGenerateReply,
   onNotify,
   onCreditsUsed,
+  onSummaryGenerated,
 }: ThreadDetailProps) {
   const [isSending, setIsSending] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const [summary, setSummary] = useState<string | null>(null);
+  const [summary, setSummary] = useState<string | null>(thread?.summary || null);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editedBody, setEditedBody] = useState<string>('');
   const [activePerson, setActivePerson] = useState<Person | null>(null);
+  const [isSavingKB, setIsSavingKB] = useState(false);
 
   if (!thread) {
     return (
@@ -71,6 +74,9 @@ export default function ThreadDetail({
       const result = await openaiService.summarizeThread(thread, messages);
       if (result.success && result.data) {
         setSummary(result.data);
+        const impRes = await openaiService.classifyImportance(thread, messages);
+        const importance = impRes.success ? impRes.data : undefined;
+        onSummaryGenerated(thread.id, result.data, importance as any);
         if (result.usage) {
           const creditsUsed = Math.ceil(result.usage.tokens / 100);
           onCreditsUsed(creditsUsed);
@@ -93,8 +99,27 @@ export default function ThreadDetail({
     }
   }, [isCollapsed]);
 
+  // Reset summary state when thread prop changes
+  useEffect(() => {
+    setSummary(thread?.summary || null);
+  }, [thread?.id]);
+
   const relatedPeople = people.filter((p) => thread.participants.includes(p.email));
   const relatedProjects = projects.filter((proj) => proj.participants.some(pid => relatedPeople.find(rp => rp.id === pid)));
+
+  const handleSaveToKB = async () => {
+    if (!thread) return;
+    setIsSavingKB(true);
+    try {
+      // For demo: we pretend to save. In future, call backend.
+      await new Promise(r => setTimeout(r, 1000));
+      onNotify('Thread saved to knowledge base (mock)', 'success');
+    } catch {
+      onNotify('Failed to save to knowledge base', 'error');
+    } finally {
+      setIsSavingKB(false);
+    }
+  };
 
   return (
     <div className="flex-1 flex">
@@ -132,6 +157,9 @@ export default function ThreadDetail({
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                   </svg>
                 )}
+              </Button>
+              <Button variant="secondary" size="sm" onClick={handleSaveToKB} disabled={isSavingKB} className="ml-2">
+                {isSavingKB ? 'Saving…' : 'Save to KB'}
               </Button>
             </div>
           </CardHeader>
