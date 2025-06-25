@@ -3,12 +3,15 @@ import type { EmailThread } from '../types';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
 import { Avatar } from './ui/avatar';
-import { StarIcon } from '@heroicons/react/24/solid';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faStar as solidStar } from '@fortawesome/free-solid-svg-icons';
+import { faStar as regularStar } from '@fortawesome/free-regular-svg-icons';
 
 interface ThreadListProps {
   threads: EmailThread[];
   selectedId: string | null;
   onSelect: (id: string) => void;
+  onToggleImportant: (id: string) => void;
 }
 
 const importanceColors = {
@@ -18,7 +21,7 @@ const importanceColors = {
   low: 'bg-gray-300',
 };
 
-export default function ThreadList({ threads, selectedId, onSelect }: ThreadListProps) {
+export default function ThreadList({ threads, selectedId, onSelect, onToggleImportant }: ThreadListProps) {
   const formatDate = (date: Date) => {
     const now = new Date();
     const diff = now.getTime() - date.getTime();
@@ -82,10 +85,21 @@ export default function ThreadList({ threads, selectedId, onSelect }: ThreadList
                 {thread.summary && (
                   <Badge variant="outline" className="text-xs">AI</Badge>
                 )}
-                {thread.status !== 'pending' && (
+                {thread.status === 'approved' && <Badge className="bg-green-100 text-green-800">Approved</Badge>}
+                {thread.status === 'rejected' && <Badge className="bg-red-100 text-red-800">Rejected</Badge>}
+                {thread.status !== 'approved' && thread.status !== 'rejected' && thread.status !== 'pending' && (
                   <Badge>{thread.status}</Badge>
                 )}
-                {thread.important && <StarIcon className="text-yellow-400 ml-1" />}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onToggleImportant(thread.id);
+                  }}
+                  className="ml-1"
+                  aria-label="Toggle star"
+                >
+                  <FontAwesomeIcon icon={thread.important ? solidStar : regularStar} className={thread.important ? 'text-yellow-400' : 'text-gray-400'} />
+                </button>
               </div>
             </Card>
           ))}
