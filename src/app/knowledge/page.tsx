@@ -26,6 +26,8 @@ export default function KnowledgePage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectForm, setProjectForm] = useState<{ [key: string]: string }>({ name: '', description: '', status: 'active', participants: '', tags: '', summary: '' });
   const [projectFormError, setProjectFormError] = useState<string | null>(null);
+  const [editPerson, setEditPerson] = useState<Person | null>(null);
+  const [editProject, setEditProject] = useState<Project | null>(null);
 
   // Load people from storage on mount
   useEffect(() => {
@@ -155,8 +157,7 @@ export default function KnowledgePage() {
                         onClick={(e) => {
                           e.stopPropagation();
                           setMenuPersonId(null);
-                          setActivePerson(person);
-                          setTimeout(() => setActivePerson(person), 0); // Open modal for edit
+                          setEditPerson(person);
                         }}
                       >
                         Edit
@@ -230,8 +231,7 @@ export default function KnowledgePage() {
                         onClick={(e) => {
                           e.stopPropagation();
                           setMenuProjectId(null);
-                          setActiveProject(proj);
-                          setTimeout(() => setActiveProject(proj), 0); // Open modal for edit
+                          setEditProject(proj);
                         }}
                       >
                         Edit
@@ -360,6 +360,30 @@ export default function KnowledgePage() {
             </ModalFooter>
           </ModalContent>
         </Modal>
+      )}
+
+      {/* Edit Person Form */}
+      {editPerson && (
+        <PersonFormModal
+          existing={editPerson}
+          triggerLabel="Edit Person"
+          onSave={(p) => {
+            upsertPerson(p).then(() => setPeople((prev) => prev.map((q) => (q.id === p.id ? p : q))));
+            setEditPerson(null);
+          }}
+        />
+      )}
+
+      {/* Edit Project Form */}
+      {editProject && (
+        <ProjectFormModal
+          existing={editProject}
+          triggerLabel="Edit Project"
+          onSave={(proj) => {
+            upsertProject(proj).then(() => setProjects((prev) => prev.map((q) => (q.id === proj.id ? proj : q))));
+            setEditProject(null);
+          }}
+        />
       )}
     </div>
   );

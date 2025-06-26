@@ -1,4 +1,4 @@
-import type { EmailThread, Email, DraftReply, Person, Project } from '../types';
+import type { EmailThread, Email, Person, Project } from '../types';
 import { mockEmails } from './emails';
 
 // Group emails into threads
@@ -11,9 +11,14 @@ export const mockThreads: EmailThread[] = [
     last_message_at: new Date('2024-06-12T09:00:00Z'),
     message_count: 5,
     has_draft: true,
-    status: 'active',
+    status: 'pending',
+    important: true,
+    summary: 'Discussion about joining Project ARK and MCP App Store.',
+    importance: 'high',
     created_at: new Date('2024-06-10T09:00:00Z'),
     updated_at: new Date('2024-06-12T09:00:00Z'),
+    messages: mockEmails.filter(e => e.subject.includes('ARK')),
+    aiReply: undefined,
   },
   {
     id: 'thread_texts',
@@ -23,53 +28,14 @@ export const mockThreads: EmailThread[] = [
     last_message_at: new Date('2024-06-24T13:12:00Z'),
     message_count: 7,
     has_draft: true,
-    status: 'active',
+    status: 'pending',
+    important: false,
+    summary: 'Support request for Texts.com desktop app crash.',
+    importance: 'urgent',
     created_at: new Date('2024-06-24T11:20:00Z'),
     updated_at: new Date('2024-06-24T13:12:00Z'),
-  },
-];
-
-// Mock draft replies
-export const mockDraftReplies: DraftReply[] = [
-  {
-    id: 'draft_ark_1',
-    thread_id: 'thread_ark',
-    user_id: 'user_jack',
-    body: `Hi Nathaniel,
-
-Thanks for the meeting details! Friday 1pm works perfectly for me. I'm excited to learn more about Project ARK and how I can contribute.
-
-See you then!
-
-Best regards,
-Jack`,
-    generated_at: new Date('2024-06-12T10:00:00Z'),
-    status: 'pending',
-    created_at: new Date('2024-06-12T10:00:00Z'),
-    updated_at: new Date('2024-06-12T10:00:00Z'),
-  },
-  {
-    id: 'draft_texts_1',
-    thread_id: 'thread_texts',
-    user_id: 'user_jack',
-    body: `Hi team,
-
-I appreciate your efforts to help resolve this issue. I've tried the suggested fix but unfortunately the app is still crashing immediately on launch.
-
-Here are some additional details that might help:
-- Windows 11 version: 22H2
-- Texts.com version: 0.84.12
-- No error messages appear
-- Event Viewer shows no obvious errors
-
-Would it be helpful if I provided debug logs or tried a beta version?
-
-Thanks,
-Jack`,
-    generated_at: new Date('2024-06-24T13:15:00Z'),
-    status: 'pending',
-    created_at: new Date('2024-06-24T13:15:00Z'),
-    updated_at: new Date('2024-06-24T13:15:00Z'),
+    messages: mockEmails.filter(e => e.subject.includes('Texts.com')),
+    aiReply: undefined,
   },
 ];
 
