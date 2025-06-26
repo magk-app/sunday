@@ -1,5 +1,40 @@
 # SundayL & MAGK Development Plan
 ====================================================
+## 0. Operational Tasls
+====================================================
+### General Tasks (within code base)
+- [ ] Change name from sundayL to sunday (general tasks and refactoring)
+
+### docs Specific Tasks (within code base)
+- [ ] 0.1.0: all good
+- [ ] 0.2.0: there are actually some openai api integrations that works in 0.2.0 and it is not mocked, manual addition of knowledge base doesn't work yet
+- [ ] bug tracking: bugs.md should track completed bugs based on version to be a bit more organized, additionally, there are dependecies issues (which are bugs but for some reason in different sections) and also todo list bugs, unify them into different pipelines (todo list bugs are the first reports, and there are detailed bug reports that have actions taken and suggested next steps, and other fields included in the.md, and dependencies are just a type of a bug)
+
+### Backend Specific Tasks (within code base)
+- [ ] src/api/analyze-email and src/api/generate-reply are they used or not? compared to openai-service.ts, which one is actually used? if there are unused ones, remove them, if the api is actually used, then use one system for all the ai calls, maybe seperate out some of the openai services into different functions in a folder for modularity
+- [ ]: Knowledge Base: ensure that there are utility restful functions that can CRUD people and projects 
+and be able to be ran by any LLM, or manually, right now you cannot add people manually, you should 
+be able to add them manually filling a form out, OR use a NEW openAI call to be able to add people 
+and project automatically
+- [ ]: AI function: implement the save to KB function that can write to knwoledge base CRUD people and project function based on the email threads in the input (if there is nothing) and UPDATE the thread instead with both existing and new data  if there are already infromation there
+- [ ]: Types.ts and also the information for people should be a little bit more comprehensive
+in the schema type, right now its simple make sure it is easily possible for admins to add new types 
+in teh future and have that reflected in the ui
+
+### Frontend Specific Tasks (within code base)
+- [ ]: Knowledge Base: The forms for adding new people and projects should be a pop up with a form, in the form there should be an option to generate a new person or project based on AI
+- [ ]: AI Function for above: generate a new person based on AI, and then add them to the knowledge base
+- [ ]: there should be an ability to edit manually or edit with ai as well, removing people and projects is just a delete function
+- [ ]: Add a summary field for people and projects, and a notes field for people, and a description field for projects
+- [ ]: THE UI is still ugly, use consistent colors and styles, and shadcn/ui components to help with this
+
+### External Tasks
+- [ ] Bug tracking: find a bug mcp server that can be used to track bugs (ideally github mcp server)
+
+### Bugs Inbox:
+- [ ]: Extract to project doesn't work yet
+
+====================================================
 ## 1. Immediate Next Steps (Sprint & Action Items)
 ====================================================
 ### 1.1 Environment & Project Setup
