@@ -6,10 +6,9 @@ import { Card } from './ui/card';
 import { Badge } from './ui/badge';
 import { Input } from './ui/input';
 import { Textarea } from './ui/textarea';
-import { getThreadMessages, mockPeople, mockProjects } from '../mock/threads';
 import { CardContent, CardHeader, CardTitle } from './ui/card';
 import { Avatar } from './ui/avatar';
-import { openaiService } from '../lib/openai-service';
+import { improveReplyStream } from '../lib/ai/reply';
 
 export interface TinderThreadCardProps {
   thread: EmailThread;
@@ -24,13 +23,14 @@ export interface TinderThreadCardProps {
   setShowImprove: (show: boolean) => void;
   jumpTarget: 'summary' | 'reply';
   setJumpTarget: (target: 'summary' | 'reply') => void;
+  messages: Email[];
 }
 
 const SWIPE_THRESHOLD = 0.33; // 33% of card width/height
 
 const TinderThreadCard = forwardRef<HTMLDivElement, TinderThreadCardProps>(function TinderThreadCard({
   thread, reply, isEditing = false, editedReply = '', onAction, onChangeReply,
-  showExpand, setShowExpand, showImprove, setShowImprove, jumpTarget, setJumpTarget
+  showExpand, setShowExpand, showImprove, setShowImprove, jumpTarget, setJumpTarget, messages
 }, ref) {
   const [swipeDir, setSwipeDir] = useState<null | 'right' | 'left' | 'up' | 'down'>(null);
   const [swipeProgress, setSwipeProgress] = useState(0);
@@ -256,7 +256,7 @@ const TinderThreadCard = forwardRef<HTMLDivElement, TinderThreadCardProps>(funct
     
     try {
       const threadContext = `Subject: ${thread.subject}\nParticipants: ${thread.participants.join(', ')}`;
-      const stream = openaiService.improveReplyStream(reply, userMessage, threadContext);
+      const stream = improveReplyStream(reply, userMessage, threadContext);
       
       for await (const chunk of stream) {
         setStreamingReply(chunk);
@@ -302,38 +302,28 @@ const TinderThreadCard = forwardRef<HTMLDivElement, TinderThreadCardProps>(funct
     setIsStreaming(false);
   };
 
-  // Get thread messages - create realistic sample data
-  const getThreadMessages = (threadId: string) => {
-    // Generate realistic email thread based on subject and participants
-    const messages = [
-      {
-        id: `msg_${threadId}_1`,
-        sender: thread.participants[0] || 'Unknown',
-        body: `Hi team,\n\nI wanted to follow up on our discussion about ${thread.subject}. I think we should move forward with the proposal we discussed last week.\n\nCould everyone please review the attached documents and let me know your thoughts by Friday?\n\nBest regards,\n${thread.participants[0]?.split('@')[0] || 'User'}`,
-        date: new Date(Date.now() - 86400000 * 2).toISOString(), // 2 days ago
-      }
-    ];
+  // Helper to get people/projects from localStorage (KB)
+  function getKBPeople() {
+    try {
+      return JSON.parse(localStorage.getItem('kb_people') || '[]') || [];
+    } catch { return []; }
+  }
+  function getKBProjects() {
+    try {
+      return JSON.parse(localStorage.getItem('kb_projects') || '[]') || [];
+    } catch { return []; }
+  }
 
-    if (thread.participants.length > 1) {
-      messages.push({
-        id: `msg_${threadId}_2`,
-        sender: thread.participants[1],
-        body: `Thanks for the update! I've reviewed the documents and they look good to me. \n\nI have a few minor suggestions:\n\n1. Could we adjust the timeline slightly?\n2. The budget looks reasonable\n3. We should include more details about the implementation phase\n\nOverall, I'm supportive of moving forward.\n\nThanks,\n${thread.participants[1]?.split('@')[0] || 'User2'}`,
-        date: new Date(Date.now() - 86400000).toISOString(), // 1 day ago
-      });
-    }
+  // Get up-to-date people/projects from KB
+  const kbPeople = getKBPeople();
+  const kbProjects = getKBProjects();
 
-    if (thread.participants.length > 2) {
-      messages.push({
-        id: `msg_${threadId}_3`,
-        sender: thread.participants[2],
-        body: `I agree with the previous comments. Let's schedule a meeting to finalize the details.\n\nI'm available next Tuesday or Wednesday afternoon. Please let me know what works for everyone.\n\nBest,\n${thread.participants[2]?.split('@')[0] || 'User3'}`,
-        date: new Date(Date.now() - 43200000).toISOString(), // 12 hours ago
-      });
-    }
-
-    return messages;
-  };
+  // For the right-side modal (expanded view):
+  // Related people: those whose email is in thread.participants
+  const relatedPeople = kbPeople.filter((person: any) => thread.participants.includes(person.email));
+  const relatedProjects = kbProjects.filter((project: any) => {
+    return project.participants && project.participants.some((pid: string) => relatedPeople.find((rp: any) => rp.id === pid));
+  });
 
   return (
     <div ref={cardRef} className="relative w-full max-w-xl mx-auto select-none" style={{ minHeight: 420 }}>
@@ -578,7 +568,7 @@ const TinderThreadCard = forwardRef<HTMLDivElement, TinderThreadCardProps>(funct
                   <div>
                     <h4 className="font-semibold text-gray-800 text-xl mb-4">📧 Email Thread</h4>
                     <div className="space-y-4">
-                      {getThreadMessages(thread.id).map((msg, idx) => (
+                      {messages.map((msg: Email, idx: number) => (
                         <div key={idx} className="relative">
                           <div className="flex gap-4">
                             <div className="w-10 h-10 bg-gradient-to-br from-green-400 to-blue-500 rounded-full flex items-center justify-center text-sm text-white font-medium flex-shrink-0">
@@ -595,7 +585,7 @@ const TinderThreadCard = forwardRef<HTMLDivElement, TinderThreadCardProps>(funct
                             </div>
                           </div>
                           {/* Connecting line */}
-                          {idx < getThreadMessages(thread.id).length - 1 && (
+                          {idx < messages.length - 1 && (
                             <div className="absolute left-5 top-12 w-0.5 h-8 bg-gray-300"></div>
                           )}
                         </div>
@@ -722,7 +712,7 @@ const TinderThreadCard = forwardRef<HTMLDivElement, TinderThreadCardProps>(funct
                   <div>
                     <h4 className="font-semibold text-gray-800 text-lg mb-3">👥 People</h4>
                     <div className="space-y-3">
-                      {mockPeople.filter(person => thread.participants.includes(person.email)).map((person) => (
+                      {relatedPeople.map((person: any) => (
                         <Card key={person.id} className="p-3">
                           <div className="flex items-start gap-3">
                             <Avatar className="w-8 h-8">
@@ -743,7 +733,7 @@ const TinderThreadCard = forwardRef<HTMLDivElement, TinderThreadCardProps>(funct
                           </div>
                         </Card>
                       ))}
-                      {mockPeople.filter(person => thread.participants.includes(person.email)).length === 0 && (
+                      {relatedPeople.length === 0 && (
                         <p className="text-xs text-gray-500">No people found.</p>
                       )}
                     </div>
@@ -753,10 +743,7 @@ const TinderThreadCard = forwardRef<HTMLDivElement, TinderThreadCardProps>(funct
                   <div>
                     <h4 className="font-semibold text-gray-800 text-lg mb-3">📋 Projects</h4>
                     <div className="space-y-3">
-                      {mockProjects.filter(project => {
-                        const relatedPeople = mockPeople.filter(person => thread.participants.includes(person.email));
-                        return project.participants.some(pid => relatedPeople.find(rp => rp.id === pid));
-                      }).map((project) => (
+                      {relatedProjects.map((project: any) => (
                         <Card key={project.id} className="p-3">
                           <h5 className="font-medium text-sm">{project.name}</h5>
                           <p className="text-xs text-gray-600 mt-1">{project.description}</p>
@@ -765,10 +752,7 @@ const TinderThreadCard = forwardRef<HTMLDivElement, TinderThreadCardProps>(funct
                           </Badge>
                         </Card>
                       ))}
-                      {mockProjects.filter(project => {
-                        const relatedPeople = mockPeople.filter(person => thread.participants.includes(person.email));
-                        return project.participants.some(pid => relatedPeople.find(rp => rp.id === pid));
-                      }).length === 0 && (
+                      {relatedProjects.length === 0 && (
                         <p className="text-xs text-gray-500">No projects found.</p>
                       )}
                     </div>

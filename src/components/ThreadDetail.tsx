@@ -5,7 +5,10 @@ import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Avatar } from './ui/avatar';
 import { Textarea } from './ui/textarea';
-import { openaiService } from '../lib/openai-service';
+import { summarizeThread } from '../lib/ai/summarize';
+import { classifyImportance } from '../lib/ai/classify';
+import { analyzeThreadFull } from '../lib/ai/extract';
+import { improveReply } from '../lib/ai/reply';
 import Link from 'next/link';
 
 interface ThreadDetailProps {
@@ -80,8 +83,8 @@ export default function ThreadDetail({
     setSummaryLoading(true);
     
     try {
-      const result = await openaiService.summarizeThread(thread, messages);
-      const impRes = await openaiService.classifyImportance(thread, messages);
+      const result = await summarizeThread(thread, messages);
+      const impRes = await classifyImportance(thread, messages);
       
       if (result.success && result.data) {
         setSummary(result.data);
@@ -137,7 +140,7 @@ export default function ThreadDetail({
     setIsSavingKB(true);
     
     try {
-      const res = await openaiService.analyzeThreadFull(thread, messages);
+      const res = await analyzeThreadFull(thread, messages);
       if (res.success && res.data) {
         try {
           const people = JSON.parse(localStorage.getItem('kb_people') || '[]');
@@ -192,7 +195,7 @@ export default function ThreadDetail({
     
     try {
       // Simulate streaming by using the improveReply method
-      const result = await openaiService.improveReply(draft.body, userMessage, thread?.subject);
+      const result = await improveReply(draft.body, userMessage, thread?.subject);
       
       if (result.success && result.data) {
         setStreamingReply(result.data);

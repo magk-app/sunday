@@ -253,22 +253,74 @@ export interface AuthSession {
   expires_at: Date;
 }
 
+/**
+ * Unified EmailThread type for all pages/components.
+ * Includes all fields used in UI, logic, and storage.
+ */
 export interface EmailThread {
   id: string;
-  user_id: string;
+  user_id?: string;
   subject: string;
   participants: string[];
-  last_message_at: Date;
-  message_count: number;
-  has_draft: boolean;
-  status: 'pending' | 'approved' | 'rejected' | 'active' | 'archived' | 'snoozed';
-  importance?: 'urgent' | 'high' | 'medium' | 'low';
+  messages?: Email[]; // Optional for legacy/mock compatibility
+  aiReply?: string; // AI-generated reply, if any
+  status: 'backlog' | 'pending' | 'approved' | 'rejected' | 'active' | 'archived' | 'snoozed';
   important?: boolean;
   summary?: string;
-  created_at: Date;
-  updated_at: Date;
+  importance?: 'urgent' | 'high' | 'medium' | 'low';
+  last_message_at?: Date | string;
+  message_count?: number;
+  has_draft?: boolean;
+  created_at: Date | string;
+  updated_at: Date | string;
 }
 
+/**
+ * Represents a person in the knowledge base.
+ * Easily extensible for future admin fields.
+ */
+export interface Person {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  company?: string;
+  role?: string;
+  notes?: string;
+  summary?: string; // Short summary for display/AI
+  tags?: string[];
+  avatarUrl?: string;
+  // [admin] Add more fields as needed for extensibility
+  [key: string]: any;
+}
+
+/**
+ * Represents a project in the knowledge base.
+ * Easily extensible for future admin fields.
+ */
+export interface Project {
+  id: string;
+  user_id: string;
+  name: string;
+  description?: string;
+  summary?: string; // Short summary for display/AI
+  status?: 'active' | 'completed' | 'archived' | string;
+  participants: string[]; // Person IDs
+  tags?: string[];
+  // [admin] Add more fields as needed for extensibility
+  [key: string]: any;
+}
+
+export interface PersonProjectRelation {
+  person_id: string;
+  project_id: string;
+  role?: string;
+  created_at: Date;
+}
+
+/**
+ * Represents a draft reply for a thread (AI-generated or user-edited).
+ */
 export interface DraftReply {
   id: string;
   thread_id: string;
@@ -279,35 +331,4 @@ export interface DraftReply {
   sent_at?: Date;
   created_at: Date;
   updated_at: Date;
-}
-
-export interface Person {
-  id: string;
-  user_id: string;
-  email: string;
-  name: string;
-  company?: string;
-  role?: string;
-  notes?: string;
-  last_contacted?: Date;
-  created_at: Date;
-  updated_at: Date;
-}
-
-export interface Project {
-  id: string;
-  user_id: string;
-  name: string;
-  description?: string;
-  status: 'active' | 'completed' | 'on_hold';
-  participants: string[]; // person IDs
-  created_at: Date;
-  updated_at: Date;
-}
-
-export interface PersonProjectRelation {
-  person_id: string;
-  project_id: string;
-  role?: string;
-  created_at: Date;
 } 

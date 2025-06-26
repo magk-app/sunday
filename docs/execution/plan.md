@@ -1,5 +1,76 @@
 # SundayL & MAGK Development Plan
 ====================================================
+## 0. Operational Tasls
+====================================================
+### General Tasks (within code base)
+- [ ] Change name from sundayL to sunday (general tasks and refactoring)
+
+### docs Specific Tasks (within code base)
+- [X] 0.1.0: all good
+- [ ] 0.2.0: there are actually some openai api integrations that works in 0.2.0 and it is not mocked, manual addition of knowledge base doesn't work yet
+- [ ] bug tracking: bugs.md should track completed bugs based on version to be a bit more organized, additionally, there are dependecies issues (which are bugs but for some reason in different sections) and also todo list bugs, unify them into different pipelines (todo list bugs are the first reports, and there are detailed bug reports that have actions taken and suggested next steps, and other fields included in the.md, and dependencies are just a type of a bug)
+- []: bug.md: MOVE TODO to the plan.md and organize it better 
+- []: Plan.md: reorganize the plan.md to have a human plan: a long term todo list that tracks all major future feautres, and move non execution related stuff into other doucmentations that is more related
+====================================================
+- [ ]: Backend OpenAI Service: Create a documentation table of content that updates overtime on all the functions and their parameters and their usage, and then have a way to edit them and update them
+- [ ]: Backend Utility Function: also create a table of content for all the functions there
+
+### Backend Specific Tasks (within code base)
+- [X] src/api/analyze-email and src/api/generate-reply are they used or not? compared to openai-service.ts, which one is actually used? if there are unused ones, remove them, if the api is actually used, then use one system for all the ai calls, maybe seperate out some of the openai services into different functions in a folder for modularity
+- [?]: Knowledge Base: ensure that there are utility restful functions that can CRUD people and projects 
+and be able to be ran by any LLM, or manually, right now you cannot add people manually, you should 
+be able to add them manually filling a form out, OR use a NEW openAI call to be able to add people 
+and project automatically
+- [X]: AI function: implement the save to KB function that can write to knowledge base CRUD people and project function based on the email threads in the input (if there is nothing) and UPDATE the thread instead with both existing and new data  if there are already infromation there
+- [X]: Types.ts and also the information for people should be a little bit more comprehensive
+in the schema type, right now its simple make sure it is easily possible for admins to add new types 
+in teh future and have that reflected in the ui
+====================================================
+
+### Frontend Specific Tasks (within code base)
+- [X]: Knowledge Base: The forms for adding new people and projects should be a pop up with a form, in the form there should be an option to generate a new person or project based on AI
+- [X]: AI Function for above: generate a new person based on AI, and then add them to the knowledge base
+- [X]: there should be an ability to edit manually or edit with ai as well, removing people and projects is just a delete function
+- [X]: Add a summary field for people and projects, and a notes field for people, and a description field for projects
+- [X]: THE UI is still ugly, use consistent colors and styles, and shadcn/ui components to help with this
+==================================
+- []: Settings Page: There should be different sections for different settings: here are the initial ones you should constrainedMemory
+Profile, AI Setting, Usage, and Other Settings
+- []:  Settings Page: Profile setting does not have profile picture, set up profile picture and store in 
+ lcoal storage for now
+AI default model, drop down for default model if there are multiple models
+A place to showcase what models and api keys are being used (openai and anthropic and open source) and teh ability to add and remove keys
+- []: Playground, a way to show all the lib/ai Functions, their prompts tmeperature and paragemeters 
+and have a way to edit them and update them 
+- []: Showcase total usage and cost for each model and api key accurately and in total, and set limits like in openai
+==================================================================
+- []: Tasks Page: there should be a way to create a new email thread from scratch, and then have a way to add it to the tasks page directly from the task page
+- []: Create a clickup database like workflow with list views showing tasks, priorities, etc
+====================================================================
+- []: Tinder Thread: currently shows no threads even though there is mock thread that should be in the local storage
+====================================================================
+- []: Main Page: edit reply doesn't save properly with the new unified storage system, same with improvement, and all other buttons
+- []: Send and reject workflows comlpetely just doesn't work, the pipeline is sent emails you canj't edit them unless you reset the simulation in settings or in tinder, rejecting workflow as well, status is not even updating
+- []: the knowledge base displayed should use the unified stoarge object as well (entity storage)
+- []: Implement scrolling and pagination if they are too many objects
+- []: Write documentation for the thread details, and tinder thread card because its very compliex
+==========================================================================
+### Copmonents
+- []: Notifications should have more colors and types.
+- []: IF a component is used globally, then it should be in the components folder, if not and only used in one place, then there should a folder for each page that has unique copmonents
+
+
+### External Tasks
+- [ ] Bug tracking: find a bug mcp server that can be used to track bugs (ideally github mcp server)
+- [ ]: OpenAI: find the old playground and see if there are any function list that tracks the different functions like summarize, extract, classify, reply, etc.\
+
+### Significant new features:
+- [ ]: Implement a MAGK playground that allows the tweaking of the ai utility functions, then save it
+
+### Bugs Inbox:
+- [X]: Extract to project doesn't work yet
+
+====================================================
 ## 1. Immediate Next Steps (Sprint & Action Items)
 ====================================================
 ### 1.1 Environment & Project Setup
