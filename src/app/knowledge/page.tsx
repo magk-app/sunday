@@ -1,11 +1,10 @@
 'use client';
 import React, { useState, useEffect } from 'react';
-import { mockPeople, mockProjects } from '../../mock/threads';
 import { Card } from '../../components/ui/card';
 import { motion, AnimatePresence } from 'framer-motion';
 import { faComputerMouse, faPeopleArrows } from '@fortawesome/free-solid-svg-icons';
-import { getPeople, getProjects, addPerson, addProject, deletePerson, deleteProject, upsertPerson, upsertProject } from '../../lib/entity-storage';
-import type { Person, Project } from '../../types';
+import { getPeople, getProjects, addPerson, addProject, deletePerson, deleteProject, upsertPerson, upsertProject, getThreads } from '../../lib/entity-storage';
+import type { Person, Project, EmailThread } from '../../types';
 import { Modal, ModalTrigger, ModalContent, ModalHeader, ModalTitle, ModalFooter } from '../../components/ui/modal';
 import PersonFormModal from '../../components/PersonFormModal';
 import ProjectFormModal from '../../components/ProjectFormModal';
@@ -28,6 +27,9 @@ export default function KnowledgePage() {
   const [projectFormError, setProjectFormError] = useState<string | null>(null);
   const [editPerson, setEditPerson] = useState<Person | null>(null);
   const [editProject, setEditProject] = useState<Project | null>(null);
+  const [threads, setThreads] = useState<EmailThread[]>([]);
+  const [showPersonThreads, setShowPersonThreads] = useState<Record<string, boolean>>({});
+  const [showProjectThreads, setShowProjectThreads] = useState<Record<string, boolean>>({});
 
   // Load people from storage on mount
   useEffect(() => {
@@ -42,6 +44,15 @@ export default function KnowledgePage() {
     (async () => {
       const stored = await getProjects();
       setProjects(stored);
+    })();
+  }, []);
+
+  // On mount, load threads from storage
+  useEffect(() => {
+    (async () => {
+      const storedThreads = await getThreads();
+      setThreads(storedThreads);
+      // ... existing people/projects loading ...
     })();
   }, []);
 
@@ -106,6 +117,17 @@ export default function KnowledgePage() {
     await deleteProject(id);
     setProjects(prev => prev.filter(p => p.id !== id));
   };
+
+  // For each person, compute connected threads
+  type GetPersonThreads = (person: Person) => EmailThread[];
+  const getPersonThreads: GetPersonThreads = (person) => threads.filter(t => t.participants.includes(person.email));
+
+  // For each project, compute connected threads (any participant in thread)
+  type GetProjectThreads = (project: Project) => EmailThread[];
+  const getProjectThreads: GetProjectThreads = (project) => threads.filter(t => project.participants.some((pid: string) => {
+    const p = people.find((pp: Person) => pp.id === pid);
+    return p && t.participants.includes(p.email);
+  }));
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
@@ -259,7 +281,7 @@ export default function KnowledgePage() {
       <AnimatePresence>
       {activePerson && (
         <motion.div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center" onClick={() => setActivePerson(null)} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-          <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} transition={{ duration: 0.3, ease: 'easeInOut' }} className="bg-white rounded-xl shadow p-6 w-[380px]" onClick={(e)=>e.stopPropagation()}>
+          <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} transition={{ duration: 0.3, ease: 'easeInOut' }} className="bg-white rounded-xl shadow p-6 w-[380px] max-h-[90vh] overflow-y-auto" onClick={(e)=>e.stopPropagation()}>
             {/* Header - match reference */}
             <div className="flex items-center gap-3 mb-4">
               <span className="relative flex shrink-0 overflow-hidden rounded-full w-10 h-10">
@@ -316,6 +338,39 @@ export default function KnowledgePage() {
                 <p className="text-xs text-gray-700 whitespace-pre-wrap">{activePerson.notes}</p>
               </div>
             )}
+            {/* Toggleable thread list */}
+            {(() => {
+              const threadsForPerson = getPersonThreads(activePerson);
+              const isOpen = showPersonThreads[activePerson.id] || false;
+              return (
+                threadsForPerson.length > 0 && (
+                  <div className="mt-4">
+                    <button
+                      className="text-xs text-blue-600 hover:underline mb-2"
+                      onClick={() => setShowPersonThreads((prev) => ({ ...prev, [activePerson.id]: !isOpen }))}
+                    >
+                      {isOpen ? 'Hide Threads' : `Show Threads (${threadsForPerson.length})`}
+                    </button>
+                    <AnimatePresence>
+                      {isOpen && (
+                        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="space-y-2">
+                          {threadsForPerson.map((t) => (
+                            <Card key={t.id} className="p-3 border border-blue-100 bg-blue-50">
+                              <div className="font-semibold text-sm mb-1">{t.subject}</div>
+                              <div className="text-xs text-gray-500">{t.participants.length} participants • {t.message_count} messages</div>
+                              <div className="text-xs text-gray-400 mt-1">Status: {t.status}</div>
+                            </Card>
+                          ))}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                )
+              );
+            })()}
+            <div className="text-right mt-4">
+              <Button variant="outline" onClick={()=>setActivePerson(null)}>Close</Button>
+            </div>
           </motion.div>
         </motion.div>
       )}
@@ -325,10 +380,70 @@ export default function KnowledgePage() {
       <AnimatePresence>
       {activeProject && (
         <motion.div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center" onClick={() => setActiveProject(null)} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-          <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} transition={{ duration: 0.3, ease: 'easeInOut' }} className="bg-white rounded-xl shadow p-6 w-96" onClick={(e)=>e.stopPropagation()}>
+          <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} transition={{ duration: 0.3, ease: 'easeInOut' }} className="bg-white rounded-xl shadow p-6 w-96 max-h-[90vh] overflow-y-auto" onClick={(e)=>e.stopPropagation()}>
             <h3 className="font-bold text-lg mb-2">{activeProject.name}</h3>
             <p className="text-sm mb-2">{activeProject.description}</p>
-            <p className="text-xs text-gray-600">Status: {activeProject.status}</p>
+            <p className="text-xs text-gray-600 mb-2">Status: {activeProject.status}</p>
+            {/* Participants as names */}
+            {activeProject.participants && activeProject.participants.length > 0 && (
+              <div className="mb-2">
+                <h4 className="text-xs font-semibold text-gray-500 uppercase mb-1">Participants</h4>
+                <div className="flex flex-wrap gap-1">
+                  {activeProject.participants.map((pid: string) => {
+                    const person = people.find((p) => p.id === pid);
+                    return (
+                      <span key={pid} className="rounded-full border bg-gray-100 px-2 py-0.5 text-[10px] font-semibold text-gray-700">
+                        {person ? person.name : pid}
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            {/* Tags */}
+            {activeProject.tags && activeProject.tags.length > 0 && (
+              <div className="mb-2">
+                <h4 className="text-xs font-semibold text-gray-500 uppercase mb-1">Tags</h4>
+                <div className="flex flex-wrap gap-1">
+                  {activeProject.tags.map((t:string) => (
+                    <Badge key={t} variant="secondary" className="text-[10px] px-2 py-0.5">{t}</Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+            {/* Toggleable thread list for project */}
+            {(() => {
+              const threadsForProject = getProjectThreads(activeProject);
+              const isOpen = showProjectThreads[activeProject.id] || false;
+              return (
+                threadsForProject.length > 0 && (
+                  <div className="mt-4">
+                    <button
+                      className="text-xs text-blue-600 hover:underline mb-2"
+                      onClick={() => setShowProjectThreads((prev) => ({ ...prev, [activeProject.id]: !isOpen }))}
+                    >
+                      {isOpen ? 'Hide Threads' : `Show Threads (${threadsForProject.length})`}
+                    </button>
+                    <AnimatePresence>
+                      {isOpen && (
+                        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="space-y-2">
+                          {threadsForProject.map((t) => (
+                            <Card key={t.id} className="p-3 border border-blue-100 bg-blue-50">
+                              <div className="font-semibold text-sm mb-1">{t.subject}</div>
+                              <div className="text-xs text-gray-500">{t.participants.length} participants • {t.message_count} messages</div>
+                              <div className="text-xs text-gray-400 mt-1">Status: {t.status}</div>
+                            </Card>
+                          ))}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                )
+              );
+            })()}
+            <div className="text-right mt-4">
+              <Button variant="outline" onClick={()=>setActiveProject(null)}>Close</Button>
+            </div>
           </motion.div>
         </motion.div>
       )}
@@ -366,7 +481,8 @@ export default function KnowledgePage() {
       {editPerson && (
         <PersonFormModal
           existing={editPerson}
-          triggerLabel="Edit Person"
+          open={true}
+          onOpenChange={(open) => { if (!open) setEditPerson(null); }}
           onSave={(p) => {
             upsertPerson(p).then(() => setPeople((prev) => prev.map((q) => (q.id === p.id ? p : q))));
             setEditPerson(null);
@@ -378,11 +494,13 @@ export default function KnowledgePage() {
       {editProject && (
         <ProjectFormModal
           existing={editProject}
-          triggerLabel="Edit Project"
+          open={true}
+          onOpenChange={(open) => { if (!open) setEditProject(null); }}
           onSave={(proj) => {
             upsertProject(proj).then(() => setProjects((prev) => prev.map((q) => (q.id === proj.id ? proj : q))));
             setEditProject(null);
           }}
+          triggerLabel=""
         />
       )}
     </div>

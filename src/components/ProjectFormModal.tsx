@@ -10,10 +10,14 @@ interface ProjectFormModalProps {
   existing?: Project | null;
   onSave: (p: Project) => void;
   triggerLabel: string;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
-export default function ProjectFormModal({ existing, onSave, triggerLabel }: ProjectFormModalProps) {
+export default function ProjectFormModal({ existing, onSave, triggerLabel, open: controlledOpen, onOpenChange }: ProjectFormModalProps) {
   const [open, setOpen] = useState(false);
+  const isControlled = controlledOpen !== undefined;
+  const modalOpen = isControlled ? controlledOpen : open;
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState<{ [k: string]: string }>(() => ({
     name: existing?.name || '',
@@ -76,10 +80,12 @@ export default function ProjectFormModal({ existing, onSave, triggerLabel }: Pro
   };
 
   return (
-    <Modal open={open} onOpenChange={setOpen}>
-      <ModalTrigger asChild>
-        <Button>{triggerLabel}</Button>
-      </ModalTrigger>
+    <Modal open={modalOpen} onOpenChange={isControlled ? onOpenChange : setOpen}>
+      {!isControlled && (
+        <ModalTrigger asChild>
+          <Button>{triggerLabel}</Button>
+        </ModalTrigger>
+      )}
       <ModalContent className="max-h-[90vh] overflow-y-auto">
         <ModalHeader>
           <ModalTitle>{existing ? 'Edit Project' : 'Add Project'}</ModalTitle>

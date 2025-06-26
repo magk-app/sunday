@@ -9,11 +9,15 @@ import { generatePersonFromPrompt } from '../lib/ai/extract';
 interface PersonFormModalProps {
   existing?: Person | null;
   onSave: (p: Person) => void;
-  triggerLabel: string;
+  triggerLabel?: string;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
-export default function PersonFormModal({ existing, onSave, triggerLabel }: PersonFormModalProps) {
+export default function PersonFormModal({ existing, onSave, triggerLabel, open: controlledOpen, onOpenChange }: PersonFormModalProps) {
   const [open, setOpen] = useState(false);
+  const isControlled = controlledOpen !== undefined;
+  const modalOpen = isControlled ? controlledOpen : open;
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState<{ [k: string]: string }>(() => ({
     name: existing?.name || '',
@@ -81,10 +85,12 @@ export default function PersonFormModal({ existing, onSave, triggerLabel }: Pers
   };
 
   return (
-    <Modal open={open} onOpenChange={setOpen}>
-      <ModalTrigger asChild>
-        <Button>{triggerLabel}</Button>
-      </ModalTrigger>
+    <Modal open={modalOpen} onOpenChange={isControlled ? onOpenChange : setOpen}>
+      {!isControlled && Boolean(triggerLabel) && (
+        <ModalTrigger asChild>
+          <Button>{triggerLabel}</Button>
+        </ModalTrigger>
+      )}
       <ModalContent className="max-h-[90vh] overflow-y-auto">
         <ModalHeader>
           <ModalTitle>{existing ? 'Edit Person' : 'Add Person'}</ModalTitle>
