@@ -5,7 +5,11 @@ import { calculateCost } from './usage';
 // This will be moved from openai-service.ts
 export async function summarizeThread(thread: EmailThread, messages: Email[], detailed: boolean = false): Promise<OpenAIResponse<string>> {
   try {
-    const apiKey = process.env.NEXT_PUBLIC_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
+    // Only allow server-side usage for security
+    if (typeof window !== 'undefined') {
+      throw new Error('OpenAI API key must not be exposed to the client. This function is server-only.');
+    }
+    const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) return { success: false, error: 'Missing OpenAI API key' };
     const conversationText = messages.map(msg => 
       `From: ${msg.sender}\nDate: ${msg.date}\n${msg.body}`

@@ -4,7 +4,11 @@ import { calculateCost } from './usage';
 
 export async function analyzeThreadFull(thread: EmailThread, messages: Email[]): Promise<OpenAIResponse<{ summary: string; people: string[]; projects: string[] }>> {
   try {
-    const apiKey = process.env.NEXT_PUBLIC_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
+    // Only allow server-side usage for security
+    if (typeof window !== 'undefined') {
+      throw new Error('OpenAI API key must not be exposed to the client. This function is server-only.');
+    }
+    const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) return { success: false, error: 'Missing OpenAI API key' };
     const conversation = messages.map(m => `${m.sender}: ${m.body}`).join("\n---\n");
     const prompt = `You are an assistant that extracts structured knowledge from email threads.\nReturn STRICTLY valid JSON with keys summary, people (array of names or emails) and projects (array of project names).\n\nThread subject: ${thread.subject}\n\nConversation:\n${conversation}\n\nJSON:`;
@@ -44,7 +48,10 @@ export async function analyzeThreadFull(thread: EmailThread, messages: Email[]):
 
 export async function extractProjectsFromText(text: string): Promise<OpenAIResponse<Project[]>> {
   try {
-    const apiKey = process.env.NEXT_PUBLIC_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
+    if (typeof window !== 'undefined') {
+      throw new Error('OpenAI API key must not be exposed to the client. This function is server-only.');
+    }
+    const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) return { success: false, error: 'Missing OpenAI API key' };
     const prompt = `Extract all project information from the following text. For each project, return a JSON object with keys: name, description, status, participants (array), tags (array). Return a JSON array of projects.\n\nText:\n${text}\n\nJSON:`;
     const model = 'gpt-4o';
@@ -83,7 +90,10 @@ export async function extractProjectsFromText(text: string): Promise<OpenAIRespo
 
 export async function generatePersonFromPrompt(prompt: string): Promise<OpenAIResponse<Person>> {
   try {
-    const apiKey = process.env.NEXT_PUBLIC_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
+    if (typeof window !== 'undefined') {
+      throw new Error('OpenAI API key must not be exposed to the client. This function is server-only.');
+    }
+    const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) return { success: false, error: 'Missing OpenAI API key' };
     const fullPrompt = `Given the following description, generate a JSON object for a person with fields: name, email, phone, company, role, notes, tags (array), avatarUrl, summary. Return only valid JSON.\n\nDescription: ${prompt}\n\nJSON:
     
@@ -153,7 +163,10 @@ export async function generatePersonFromPrompt(prompt: string): Promise<OpenAIRe
 
 export async function generateProjectFromPrompt(prompt: string): Promise<OpenAIResponse<Project>> {
   try {
-    const apiKey = process.env.NEXT_PUBLIC_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
+    if (typeof window !== 'undefined') {
+      throw new Error('OpenAI API key must not be exposed to the client. This function is server-only.');
+    }
+    const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) return { success: false, error: 'Missing OpenAI API key' };
     const fullPrompt = `Given the following description, generate a JSON object for a project with fields: name, description, summary, status, participants (array), tags (array). Return only valid JSON.\n\nDescription: ${prompt}\n\nJSON:
     

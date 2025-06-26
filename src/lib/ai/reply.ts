@@ -4,7 +4,11 @@ import { calculateCost } from './usage';
 
 export async function generateReply(thread: EmailThread, messages: Email[]): Promise<OpenAIResponse<string>> {
   try {
-    const apiKey = process.env.NEXT_PUBLIC_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
+    // Only allow server-side usage for security
+    if (typeof window !== 'undefined') {
+      throw new Error('OpenAI API key must not be exposed to the client. This function is server-only.');
+    }
+    const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) return { success: false, error: 'Missing OpenAI API key' };
     const conversationText = messages.map(msg => 
       `From: ${msg.sender}\nDate: ${msg.date}\n${msg.body}`
@@ -56,7 +60,10 @@ export async function generateReply(thread: EmailThread, messages: Email[]): Pro
 
 export async function improveReply(originalReply: string, userSuggestion: string, threadContext?: string): Promise<OpenAIResponse<string>> {
   try {
-    const apiKey = process.env.NEXT_PUBLIC_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
+    if (typeof window !== 'undefined') {
+      throw new Error('OpenAI API key must not be exposed to the client. This function is server-only.');
+    }
+    const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) return { success: false, error: 'Missing OpenAI API key' };
     const prompt = `You are an AI assistant helping to improve email replies. The user has suggested an improvement to the current draft.\n\nOriginal Reply:\n${originalReply}\n\nUser Suggestion:\n${userSuggestion}\n\n${threadContext ? `Thread Context:\n${threadContext}\n` : ''}\n\nPlease provide an improved version of the reply that incorporates the user's suggestion while maintaining a professional tone and appropriate context. Keep the core message but enhance it based on the feedback.\n\nImproved Reply:`;
     const model = 'gpt-4o';
