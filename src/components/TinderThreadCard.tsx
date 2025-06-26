@@ -365,50 +365,48 @@ const TinderThreadCard = forwardRef<HTMLDivElement, TinderThreadCardProps>(funct
             <span className="text-4xl font-bold text-white">Saved to Knowledge Base!</span>
           </motion.div>
         )}
-        <Card className={`p-6 h-[520px] flex flex-col bg-white overflow-hidden rounded-xl shadow transition-opacity duration-200 ${hideContent ? 'opacity-0' : 'opacity-100'}`}
+        <Card className={`p-6 h-[520px] flex flex-col bg-white dark:bg-gray-800 overflow-hidden rounded-xl shadow dark:shadow-gray-900/50 transition-opacity duration-200 ${hideContent ? 'opacity-0' : 'opacity-100'}`}
           style={{ borderRadius: 24 }}
         >
           {/* Header */}
           <div className="mb-3 flex items-center gap-2">
-            <h2 className="text-2xl font-extrabold text-gray-900 line-clamp-2 mb-1 flex-1">{thread.subject}</h2>
+            <h2 className="text-2xl font-extrabold text-gray-900 dark:text-white line-clamp-2 mb-1 flex-1">{thread.subject}</h2>
             <Badge className={tagColor + ' text-xs'}>{tag}</Badge>
           </div>
-          <p className="text-xs text-gray-500 mb-2">
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
             {thread.participants.slice(0, 3).join(', ')}
             {thread.participants.length > 3 && ` +${thread.participants.length - 3}`}
           </p>
 
-
           {/* Main content */}
           <div ref={mainContentRef} className="flex-1 overflow-y-auto pr-1 space-y-6">
 
-
             {/* AI Summary Section */}
             <div ref={summaryRef} className="mb-6">
-              <h4 className="font-semibold text-gray-800 mb-3 flex items-center gap-2 text-lg">
+              <h4 className="font-semibold text-gray-800 dark:text-gray-200 mb-3 flex items-center gap-2 text-lg">
                 <span>📝</span>
                 AI Summary
               </h4>
-              <div className="bg-gray-50 rounded-lg p-4 border">
-                <p className="text-base text-gray-800 whitespace-pre-wrap leading-relaxed">{thread.summary || 'No summary available.'}</p>
+              <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 border dark:border-gray-600">
+                <p className="text-base text-gray-800 dark:text-gray-200 whitespace-pre-wrap leading-relaxed">{thread.summary || 'No summary available.'}</p>
               </div>
             </div>
 
             {/* AI Reply Section - same hierarchy as summary */}
             {reply && (
               <div ref={replyRef} className="mb-6">
-                <h4 className="font-semibold text-gray-800 mb-3 flex items-center gap-2 text-lg">
+                <h4 className="font-semibold text-gray-800 dark:text-gray-200 mb-3 flex items-center gap-2 text-lg">
                   <span>🤖</span>
                   AI-Generated Reply
                 </h4>
                 
-                <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 border border-blue-200 dark:border-blue-700">
                   {/* Much larger text area for better visibility */}
                   <Textarea
                     ref={textareaRef}
                     value={isEditing ? editedReply : (streamingReply || reply)}
                     onChange={(e) => onChangeReply?.(e.target.value)}
-                    className="resize-none min-h-[200px] w-full text-base leading-relaxed focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                    className="resize-none min-h-[200px] w-full text-base leading-relaxed focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                     placeholder={isEditing ? "Edit your reply here..." : "AI-generated reply"}
                     readOnly={!isEditing}
                     style={{ cursor: isEditing ? 'text' : 'default' }}
@@ -419,57 +417,57 @@ const TinderThreadCard = forwardRef<HTMLDivElement, TinderThreadCardProps>(funct
                     {isEditing ? (
                       <>
                         <button 
-                          className="bg-green-600 text-white px-4 py-2 rounded font-semibold hover:bg-green-700 transition"
+                          className="bg-green-600 dark:bg-green-500 text-white px-4 py-2 rounded font-semibold hover:bg-green-700 dark:hover:bg-green-600 transition"
                           onClick={() => onAction('edit')}
                         >
                           ✅ Save Changes
                         </button>
                         <button 
-                          className="bg-gray-500 text-white px-4 py-2 rounded font-semibold hover:bg-gray-600 transition"
+                          className="bg-gray-500 dark:bg-gray-600 text-white px-4 py-2 rounded font-semibold hover:bg-gray-600 dark:hover:bg-gray-700 transition"
                           onClick={() => onAction('cancel_edit')}
                         >
                           Cancel
                         </button>
                         <button 
-                          className="bg-purple-600 text-white px-3 py-2 rounded font-semibold hover:bg-purple-700 transition text-sm"
+                          className="bg-purple-600 dark:bg-purple-500 text-white px-3 py-2 rounded font-semibold hover:bg-purple-700 dark:hover:bg-purple-600 transition text-sm"
                           onClick={() => setShowImproveChat(!showImproveChat)}
                         >
                           ✨ Improve with AI
                         </button>
                       </>
                     ) : (
-                                                  <>
-                                                            <button 
-                                className={`px-3 py-2 rounded font-semibold transition text-sm ${
-                                  thread.status === 'approved' || thread.status === 'rejected'
-                                    ? 'bg-gray-400 text-gray-600 cursor-not-allowed'
-                                    : 'bg-yellow-600 text-white hover:bg-yellow-700'
-                                }`}
-                                onClick={() => onAction('edit')}
-                                disabled={thread.status === 'approved' || thread.status === 'rejected'}
-                              >
-                                ✏️ Edit Reply
-                              </button>
-                              
-                              {/* Show different buttons for processed vs active threads */}
-                              {thread.status === 'rejected' && !reply ? (
-                                <button 
-                                  className="bg-blue-600 text-white px-3 py-2 rounded font-semibold hover:bg-blue-700 transition text-sm"
-                                  onClick={() => onAction('generate_new')}
-                                >
-                                  🔄 New Reply
-                                </button>
-                              ) : thread.status === 'pending' || (!thread.status && reply) ? (
-                                <button 
-                                  className="bg-purple-600 text-white px-3 py-2 rounded font-semibold hover:bg-purple-700 transition text-sm"
-                                  onClick={() => setShowImproveChat(!showImproveChat)}
-                                >
-                                  ✨ Improve with AI
-                                </button>
-                              ) : null}
+                      <>
+                        <button 
+                          className={`px-3 py-2 rounded font-semibold transition text-sm ${
+                            thread.status === 'approved' || thread.status === 'rejected'
+                              ? 'bg-gray-400 dark:bg-gray-600 text-gray-600 dark:text-gray-400 cursor-not-allowed'
+                              : 'bg-yellow-600 dark:bg-yellow-500 text-white hover:bg-yellow-700 dark:hover:bg-yellow-600'
+                          }`}
+                          onClick={() => onAction('edit')}
+                          disabled={thread.status === 'approved' || thread.status === 'rejected'}
+                        >
+                          ✏️ Edit Reply
+                        </button>
+                        
+                        {/* Show different buttons for processed vs active threads */}
+                        {thread.status === 'rejected' && !reply ? (
+                          <button 
+                            className="bg-blue-600 dark:bg-blue-500 text-white px-3 py-2 rounded font-semibold hover:bg-blue-700 dark:hover:bg-blue-600 transition text-sm"
+                            onClick={() => onAction('generate_new')}
+                          >
+                            🔄 New Reply
+                          </button>
+                        ) : thread.status === 'pending' || (!thread.status && reply) ? (
+                          <button 
+                            className="bg-purple-600 dark:bg-purple-500 text-white px-3 py-2 rounded font-semibold hover:bg-purple-700 dark:hover:bg-purple-600 transition text-sm"
+                            onClick={() => setShowImproveChat(!showImproveChat)}
+                          >
+                            ✨ Improve with AI
+                          </button>
+                        ) : null}
                         {hasStreamedReply && !streamingReply.startsWith('❌') && (
                           <button 
-                            className="bg-green-600 text-white px-3 py-2 rounded font-semibold hover:bg-green-700 transition text-sm"
+                            className="bg-green-600 dark:bg-green-500 text-white px-3 py-2 rounded font-semibold hover:bg-green-700 dark:hover:bg-green-600 transition text-sm"
                             onClick={handleAcceptImprovement}
                           >
                             ✅ Accept Improvement
@@ -481,7 +479,7 @@ const TinderThreadCard = forwardRef<HTMLDivElement, TinderThreadCardProps>(funct
                   
                   {/* Inline improvement chat interface */}
                   {showImproveChat && (
-                    <div className="mt-4 border-t pt-3 space-y-3">
+                    <div className="mt-4 border-t dark:border-gray-600 pt-3 space-y-3">
                       <div className="flex gap-2">
                         <Textarea
                           value={chatInput}
@@ -498,7 +496,7 @@ const TinderThreadCard = forwardRef<HTMLDivElement, TinderThreadCardProps>(funct
                           disabled={isStreaming}
                         />
                         <button 
-                          className="bg-purple-600 text-white px-4 py-2 rounded font-semibold hover:bg-purple-700 transition disabled:opacity-50 disabled:cursor-not-allowed" 
+                          className="bg-purple-600 dark:bg-purple-500 text-white px-4 py-2 rounded font-semibold hover:bg-purple-700 dark:hover:bg-purple-600 transition disabled:opacity-50 disabled:cursor-not-allowed" 
                           onClick={handleChatSend}
                           disabled={isStreaming || !chatInput.trim()}
                         >
@@ -508,8 +506,8 @@ const TinderThreadCard = forwardRef<HTMLDivElement, TinderThreadCardProps>(funct
                       
                       {/* Show streaming improvement directly in the textarea above */}
                       {isStreaming && (
-                        <div className="text-xs text-purple-600 flex items-center gap-1">
-                          <div className="animate-pulse w-1.5 h-1.5 bg-purple-500 rounded-full"></div>
+                        <div className="text-xs text-purple-600 dark:text-purple-400 flex items-center gap-1">
+                          <div className="animate-pulse w-1.5 h-1.5 bg-purple-500 dark:bg-purple-400 rounded-full"></div>
                           <span>Generating improved version...</span>
                         </div>
                       )}
@@ -522,14 +520,14 @@ const TinderThreadCard = forwardRef<HTMLDivElement, TinderThreadCardProps>(funct
             {/* Show "New Reply" button for rejected threads without a draft */}
             {!reply && thread.status === 'rejected' && (
               <div ref={replyRef} className="mb-6">
-                <h4 className="font-semibold text-gray-800 mb-3 flex items-center gap-2 text-lg">
+                <h4 className="font-semibold text-gray-800 dark:text-gray-200 mb-3 flex items-center gap-2 text-lg">
                   <span>🤖</span>
                   Generate New Reply
                 </h4>
-                <div className={`rounded-lg p-6 border text-center bg-red-50 border-red-200`}>
-                  <p className="text-gray-600 mb-4">This thread was rejected. Generate a new reply to continue the conversation.</p>
+                <div className={`rounded-lg p-6 border text-center bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700`}>
+                  <p className="text-gray-600 dark:text-gray-300 mb-4">This thread was rejected. Generate a new reply to continue the conversation.</p>
                   <button 
-                    className="bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-700 transition"
+                    className="bg-blue-600 dark:bg-blue-500 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-700 dark:hover:bg-blue-600 transition"
                     onClick={() => onAction('generate_new')}
                   >
                     🔄 New Reply
@@ -545,20 +543,20 @@ const TinderThreadCard = forwardRef<HTMLDivElement, TinderThreadCardProps>(funct
                 {thread.importance}
               </Badge>
             )}
-            {reply && <Badge className="bg-amber-100 text-amber-800 text-[10px]">Draft</Badge>}
+            {reply && <Badge className="bg-amber-100 dark:bg-amber-900 text-amber-800 dark:text-amber-200 text-[10px]">Draft</Badge>}
           </div>
         </Card>
       </motion.div>
       {/* Expand Thread Modal */}
       {showExpand && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl h-5/6 flex flex-col">
+        <div className="fixed inset-0 bg-black/50 dark:bg-black/70 z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-6xl h-5/6 flex flex-col">
             {/* Modal Header */}
-            <div className="flex items-center justify-between p-6 border-b">
-              <h3 className="text-xl font-bold">{thread.subject}</h3>
+            <div className="flex items-center justify-between p-6 border-b dark:border-gray-600">
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white">{thread.subject}</h3>
               <button
                 onClick={() => setShowExpand(false)}
-                className="text-gray-500 hover:text-gray-700 transition text-2xl"
+                className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition text-2xl"
               >
                 ×
               </button>
@@ -567,11 +565,11 @@ const TinderThreadCard = forwardRef<HTMLDivElement, TinderThreadCardProps>(funct
             {/* Modal Content - New Layout: Email Thread + Reply (Left) and Summary + People/Projects (Right) */}
             <div className="flex-1 flex overflow-hidden">
               {/* Left Section - Email Thread + Reply Draft */}
-              <div className="w-2/3 border-r overflow-y-auto custom-scrollbar bg-gray-50">
+              <div className="w-2/3 border-r dark:border-gray-600 overflow-y-auto custom-scrollbar bg-gray-50 dark:bg-gray-700">
                 <div className="p-6 space-y-6">
                   {/* Email Thread */}
                   <div>
-                    <h4 className="font-semibold text-gray-800 text-xl mb-4">📧 Email Thread</h4>
+                    <h4 className="font-semibold text-gray-800 dark:text-gray-200 text-xl mb-4">📧 Email Thread</h4>
                     <div className="space-y-4">
                       {messages.map((msg: Email, idx: number) => (
                         <div key={idx} className="relative">
@@ -580,12 +578,12 @@ const TinderThreadCard = forwardRef<HTMLDivElement, TinderThreadCardProps>(funct
                               {msg.sender[0].toUpperCase()}
                             </div>
                             <div className="flex-1">
-                              <div className="bg-white rounded-lg p-4 border shadow-sm">
+                              <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border dark:border-gray-600 shadow-sm">
                                 <div className="flex items-center gap-2 mb-2">
-                                  <span className="font-semibold text-sm">{msg.sender}</span>
-                                  <span className="text-xs text-gray-500">{new Date(msg.date).toLocaleString()}</span>
+                                  <span className="font-semibold text-sm text-gray-900 dark:text-white">{msg.sender}</span>
+                                  <span className="text-xs text-gray-500 dark:text-gray-400">{new Date(msg.date).toLocaleString()}</span>
                                 </div>
-                                <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{msg.body}</p>
+                                <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">{msg.body}</p>
                               </div>
                             </div>
                           </div>

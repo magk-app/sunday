@@ -1,6 +1,7 @@
 import '../app/globals.css';
 import NavBar from '../components/NavBar';
 import ErrorBoundary from '../components/ErrorBoundary';
+import DarkModeProvider from '../../src/components/DarkModeProvider';
 
 export const metadata = {
   title: 'Sunday',
@@ -20,11 +21,13 @@ export default function RootLayout({
           content="telephone=no, date=no, email=no, address=no"
         />
       </head>
-      <body className="pt-16" suppressHydrationWarning>
-        <ErrorBoundary>
-          <NavBar />
-          {children}
-        </ErrorBoundary>
+      <body className="pt-16 dark:bg-gray-900 dark:text-white transition-colors" suppressHydrationWarning>
+        <DarkModeProvider>
+          <ErrorBoundary>
+            <NavBar />
+            {children}
+          </ErrorBoundary>
+        </DarkModeProvider>
       </body>
     </html>
   )
