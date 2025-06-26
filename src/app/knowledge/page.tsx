@@ -42,7 +42,7 @@ export default function KnowledgePage() {
       <AnimatePresence>
       {activePerson && (
         <motion.div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center" onClick={() => setActivePerson(null)} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-          <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} transition={{ type: 'spring', stiffness: 300 }} className="bg-white rounded-xl shadow p-6 w-80" onClick={(e)=>e.stopPropagation()}>
+          <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} transition={{ duration: 0.3, ease: 'easeInOut' }} className="bg-white rounded-xl shadow p-6 w-80" onClick={(e)=>e.stopPropagation()}>
             <h3 className="font-bold text-lg mb-2">{activePerson.name}</h3>
             <p className="text-sm text-gray-500 mb-1">{activePerson.email}</p>
             {activePerson.company && <p className="text-sm mb-1">Company: {activePerson.company}</p>}
@@ -57,7 +57,7 @@ export default function KnowledgePage() {
       <AnimatePresence>
       {activeProject && (
         <motion.div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center" onClick={() => setActiveProject(null)} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-          <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} transition={{ type: 'spring', stiffness: 300 }} className="bg-white rounded-xl shadow p-6 w-96" onClick={(e)=>e.stopPropagation()}>
+          <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} transition={{ duration: 0.3, ease: 'easeInOut' }} className="bg-white rounded-xl shadow p-6 w-96" onClick={(e)=>e.stopPropagation()}>
             <h3 className="font-bold text-lg mb-2">{activeProject.name}</h3>
             <p className="text-sm mb-2">{activeProject.description}</p>
             <p className="text-xs text-gray-600">Status: {activeProject.status}</p>

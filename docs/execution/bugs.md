@@ -117,9 +117,11 @@
 
 #### ⬜ `langgraph` Not Found in npm Registry
 - **See above for details.**
+- **Update**: Remove 'langgraph' from dependencies in package.json until a public npm release is available. If needed, install from GitHub as per official docs.
 
 #### ⬜ `langchain` and `googleapis` Version Conflict
 - **See above for details.**
+- **Update**: If 'langchain' integration is required, downgrade 'googleapis' to ^126.0.1 as per langchain requirements.
 
 ---
 

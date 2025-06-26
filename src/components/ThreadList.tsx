@@ -22,7 +22,8 @@ const importanceColors = {
 };
 
 export default function ThreadList({ threads, selectedId, onSelect, onToggleImportant }: ThreadListProps) {
-  const formatDate = (date: Date) => {
+  const formatDate = (dateRaw: Date | string) => {
+    const date = typeof dateRaw === 'string' ? new Date(dateRaw) : dateRaw;
     const now = new Date();
     const diff = now.getTime() - date.getTime();
     const hours = diff / (1000 * 60 * 60);
