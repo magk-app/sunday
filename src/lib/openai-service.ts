@@ -1,4 +1,5 @@
 import type { EmailThread, Email } from '../types';
+import type { Project } from '../types';
 
 export interface OpenAIUsage {
   tokens: number;
@@ -400,6 +401,37 @@ Improved Reply:`;
       await new Promise(resolve => setTimeout(resolve, Math.random() * 100 + 50));
     }
   }
+
+  /**
+   * Extract projects from freeform text using OpenAI.
+   * Returns an array of project objects (name, description, status, participants, tags).
+   */
+  async extractProjectsFromText(text: string): Promise<OpenAIResponse<Project[]>> {
+    try {
+      const prompt = `Extract all project information from the following text. For each project, return a JSON object with keys: name, description, status, participants (array), tags (array). Return a JSON array of projects.\n\nText:\n${text}\n\nJSON:`;
+      const model = 'gpt-4o';
+      const data = await this.makeRequest('/chat/completions', {
+        model,
+        messages: [
+          { role: 'system', content: 'Extract project information and return only valid JSON.' },
+          { role: 'user', content: prompt },
+        ],
+        max_tokens: 400,
+        temperature: 0,
+      });
+      let projects: Project[] = [];
+      try {
+        projects = JSON.parse(data.choices?.[0]?.message?.content || '[]');
+      } catch {
+        return { success: false, error: 'Failed to parse JSON' };
+      }
+      const cost = this.calculateCost(data.usage, model);
+      return { success: true, data: projects, usage: { tokens: data.usage.total_tokens, cost, operation: 'analyze' } };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  }
 }
 
-export const openaiService = new OpenAIService(); 
+export const openaiService = new OpenAIService();
+export * from './ai'; 
