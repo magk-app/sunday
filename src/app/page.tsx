@@ -60,12 +60,13 @@ export default function HomePage() {
 
   const handleGenerateReply = async () => {
     if (!selectedThreadId || !selectedThread) return;
-    
+    setDrafts(prev => prev.filter(d => !(d.thread_id === selectedThreadId && d.status === 'pending')));
     if (credits < 5) {
       setNotification({ message: 'Insufficient credits to generate reply', type: 'error' });
       return;
     }
-    
+    // Only remove pending drafts if credits are sufficient
+    setDrafts(prev => prev.filter(d => !(d.thread_id === selectedThreadId && d.status === 'pending')));
     setNotification({ message: 'Generating AI reply...', type: 'success' });
     
     try {
