@@ -23,15 +23,26 @@ const importanceColors = {
 
 export default function ThreadList({ threads, selectedId, onSelect, onToggleImportant }: ThreadListProps) {
   const formatDate = (dateRaw: Date | string) => {
-    const date = typeof dateRaw === 'string' ? new Date(dateRaw) : dateRaw;
-    const now = new Date();
-    const diff = now.getTime() - date.getTime();
-    const hours = diff / (1000 * 60 * 60);
+    try {
+      const date = typeof dateRaw === 'string' ? new Date(dateRaw) : dateRaw;
+      if (isNaN(date.getTime())) return 'Invalid date';
+      
+      const now = new Date();
+      const diff = now.getTime() - date.getTime();
+      const hours = diff / (1000 * 60 * 60);
 
-    if (hours < 1) return 'Just now';
-    if (hours < 24) return `${Math.floor(hours)}h ago`;
-    if (hours < 168) return `${Math.floor(hours / 24)}d ago`;
-    return date.toLocaleDateString();
+      if (hours < 1) return 'Just now';
+      if (hours < 24) return `${Math.floor(hours)}h ago`;
+      if (hours < 168) return `${Math.floor(hours / 24)}d ago`;
+      
+      return date.toLocaleDateString('en-US', { 
+        month: 'short', 
+        day: 'numeric',
+        year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined 
+      });
+    } catch {
+      return 'Invalid date';
+    }
   };
 
   return (
@@ -52,7 +63,7 @@ export default function ThreadList({ threads, selectedId, onSelect, onToggleImpo
                   {thread.subject}
                 </h3>
                 <span className="text-xs text-gray-500 whitespace-nowrap">
-                  {formatDate(thread.last_message_at)}
+                  {formatDate(thread.last_message_at || new Date())}
                 </span>
               </div>
 

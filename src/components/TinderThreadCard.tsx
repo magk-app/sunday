@@ -44,9 +44,8 @@ const TinderThreadCard = forwardRef<HTMLDivElement, TinderThreadCardProps>(funct
   const [hasStreamedReply, setHasStreamedReply] = useState(false);
   const [showImproveChat, setShowImproveChat] = useState(false);
   const [showRejectDialog, setShowRejectDialog] = useState(false);
-  const [autoSaveKB, setAutoSaveKB] = useState(() => {
-    return localStorage.getItem('auto_save_kb') !== 'false'; // Default to true
-  });
+  const [autoSaveKB, setAutoSaveKB] = useState(true); // Default to true
+  const [mounted, setMounted] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const summaryRef = useRef<HTMLDivElement>(null);
@@ -58,6 +57,12 @@ const TinderThreadCard = forwardRef<HTMLDivElement, TinderThreadCardProps>(funct
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const mainContentRef = useRef<HTMLDivElement>(null);
   const [showTooltip, setShowTooltip] = useState(false);
+
+  // Initialize autoSaveKB from localStorage after mount
+  useEffect(() => {
+    setMounted(true);
+    setAutoSaveKB(localStorage.getItem('auto_save_kb') !== 'false');
+  }, []);
 
   // Overlay color and label
   let overlayColor = '';

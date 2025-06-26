@@ -6,35 +6,15 @@ import { Button } from '../../components/ui/button';
 import type { EmailThread, DraftReply } from '../../types';
 import type { Email } from '../../types';
 import { summarizeThread } from '../../lib/ai/summarize';
-import { generateReply, improveReply, improveReplyStream } from '../../lib/ai/reply';
+import { generateReply } from '../../lib/ai/reply';
 import { analyzeThreadFull } from '../../lib/ai/extract';
-import { useSwipeable } from 'react-swipeable';
-import { getThreads, updateThread, createThread, deleteThread, initMockDataIfNeeded, getThreadMessages } from '../../lib/entity-storage';
-import StatusBar from '../../components/StatusBar';
+import { getThreads, updateThread, initMockDataIfNeeded, getThreadMessages } from '../../lib/entity-storage';
 import { mockEmails } from '../../mock/emails';
 
 interface ThreadWithExtras extends EmailThread { __handled?: boolean }
 
 // Helpers for localStorage persistence
-const LS_THREADS_KEY = 'threads';
 const LS_DRAFTS_KEY = 'drafts';
-
-function loadDrafts(): DraftReply[] {
-  try {
-    const raw = localStorage.getItem(LS_DRAFTS_KEY);
-    if (raw) {
-      const arr = JSON.parse(raw);
-      return arr.map((d: any) => ({
-        ...d,
-        generated_at: d.generated_at ? new Date(d.generated_at) : undefined,
-        created_at: d.created_at ? new Date(d.created_at) : undefined,
-        updated_at: d.updated_at ? new Date(d.updated_at) : undefined,
-        sent_at: d.sent_at ? new Date(d.sent_at) : undefined,
-      }));
-    }
-  } catch {}
-  return [];
-}
 
 // Usage tracking functions
 function updateUsageTracking(tokens: number, cost: number) {
@@ -46,8 +26,9 @@ function updateUsageTracking(tokens: number, cost: number) {
 }
 
 export default function TinderViewPage() {
+  // All hooks must be at the top, before any early returns
   const [threads, setThreads] = useState<ThreadWithExtras[]>([]);
-  const [drafts, setDrafts] = useState<DraftReply[]>(loadDrafts());
+  const [drafts, setDrafts] = useState<DraftReply[]>([]);
   const [index, setIndex] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -71,6 +52,204 @@ export default function TinderViewPage() {
   // Refs for scrolling
   const cardAreaRef = useRef<HTMLDivElement>(null);
 
+  // Initialize data only on client
+  useEffect(() => {
+    (async () => {
+      await initMockDataIfNeeded(mockThreads, mockEmails);
+      const loadedThreads = await getThreads();
+      setThreads((loadedThreads as ThreadWithExtras[]).map(t => ({ ...t, __handled: t.__handled ?? false })));
+    })();
+  }, []);
+
+  // Load drafts from localStorage after mount
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(LS_DRAFTS_KEY);
+      if (raw) {
+        const arr = JSON.parse(raw);
+        setDrafts(arr.map((d: any) => ({
+          ...d,
+          generated_at: d.generated_at ? new Date(d.generated_at) : undefined,
+          created_at: d.created_at ? new Date(d.created_at) : undefined,
+          updated_at: d.updated_at ? new Date(d.updated_at) : undefined,
+          sent_at: d.sent_at ? new Date(d.sent_at) : undefined,
+        })));
+      } else {
+        setDrafts([]);
+      }
+    } catch { setDrafts([]); }
+  }, []);
+
+  // Listen for storage changes
+  useEffect(() => {
+    const handleStorageChange = async () => {
+      const loadedThreads = await getThreads();
+      setThreads(loadedThreads);
+      setDrafts(drafts);
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [threads, drafts]);
+
+  // Sync localStorage whenever threads change
+  useEffect(() => {
+    threads.forEach(async t => {
+      const { __handled, ...threadFields } = t;
+      await updateThread(t.id, threadFields as Partial<EmailThread>);
+    });
+  }, [threads]);
+
+  // Only generate AI for the current thread on start
+  useEffect(() => {
+    if (!showSplash && threads.length > 0) {
+      (async () => {
+        const t = threads[index];
+        if (!t) return; // Guard against undefined
+        
+        if (!t.summary || !drafts.find(d => d.thread_id === t.id && d.status === 'pending')) {
+          setLoadingAI(true);
+          const messages = await getThreadMessages(t.id);
+          let updatedThreads = [...threads];
+          let updatedDrafts = [...drafts];
+          // Generate summary if missing
+          if (!t.summary) {
+            try {
+              const resSum = await summarizeThread(t, messages, true);
+              if (resSum.success && resSum.data) {
+                updatedThreads[index].summary = resSum.data;
+                // Track usage
+                if (resSum.usage) {
+                  updateUsageTracking(resSum.usage.tokens, resSum.usage.cost);
+                }
+              }
+            } catch (error) {
+              console.error('Failed to generate summary:', error);
+            }
+          }
+          // Generate reply if missing and not already processed
+          const existingDraft = updatedDrafts.find(d => d.thread_id === t.id && d.status === 'pending');
+          if (!existingDraft && t.status !== 'approved' && t.status !== 'rejected') {
+            try {
+              const resRep = await generateReply(t, messages);
+              if (resRep.success && resRep.data) {
+                const newDraft: DraftReply = {
+                  id: `draft_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+                  thread_id: t.id,
+                  user_id: 'user_jack',
+                  body: resRep.data,
+                  generated_at: new Date(),
+                  status: 'pending' as const,
+                  created_at: new Date(),
+                  updated_at: new Date(),
+                };
+                updatedDrafts.push(newDraft);
+                updatedThreads[index].has_draft = true;
+                // Track usage
+                if (resRep.usage) {
+                  updateUsageTracking(resRep.usage.tokens, resRep.usage.cost);
+                }
+              }
+            } catch (error) {
+              console.error('Failed to generate reply:', error);
+            }
+          }
+          setThreads(updatedThreads);
+          setDrafts(updatedDrafts);
+          // Preload next thread in background
+          if (index + 1 < threads.length) {
+            const next = updatedThreads[index + 1];
+            const nextMessages = await getThreadMessages(next.id);
+            if (!next.summary) {
+              summarizeThread(next, nextMessages, true).then(resSum => {
+                if (resSum.success && resSum.data) {
+                  const tCopy = [...updatedThreads];
+                  tCopy[index + 1].summary = resSum.data;
+                  setThreads(tCopy);
+                  // Track usage
+                  if (resSum.usage) {
+                    updateUsageTracking(resSum.usage.tokens, resSum.usage.cost);
+                  }
+                }
+              }).catch(error => console.error('Background summary failed:', error));
+            }
+            const nextDraft = updatedDrafts.find(d => d.thread_id === next.id && d.status === 'pending');
+            if (!nextDraft && next.status !== 'approved' && next.status !== 'rejected') {
+              generateReply(next, nextMessages).then(resRep => {
+                if (resRep.success && resRep.data) {
+                  const newDraft: DraftReply = {
+                    id: `draft_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+                    thread_id: next.id,
+                    user_id: 'user_jack',
+                    body: resRep.data,
+                    generated_at: new Date(),
+                    status: 'pending' as const,
+                    created_at: new Date(),
+                    updated_at: new Date(),
+                  };
+                  const dCopy = [...updatedDrafts, newDraft];
+                  setDrafts(dCopy);
+                  const tCopy = [...updatedThreads];
+                  tCopy[index + 1].has_draft = true;
+                  setThreads(tCopy);
+                  // Track usage
+                  if (resRep.usage) {
+                    updateUsageTracking(resRep.usage.tokens, resRep.usage.cost);
+                  }
+                }
+              }).catch(error => console.error('Background reply failed:', error));
+            }
+          }
+          setLoadingAI(false);
+        }
+      })();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showSplash, index]);
+
+  // When all cards are processed, show celebration
+  useEffect(() => {
+    const allProcessed = threads.every(t => t.__handled === true);
+    if (allProcessed && threads.length > 0 && !showSplash && processedCount > 0) {
+      setShowCelebration(true);
+    }
+  }, [threads, showSplash, processedCount]);
+
+  // Ensure all threads start with status 'pending' unless already set
+  useEffect(() => {
+    setThreads(prev => prev.map(t => ({ ...t, status: t.status || 'pending', __handled: t.__handled || false })));
+  }, []);
+
+  // Sync status changes with main app
+  useEffect(() => {
+    window.dispatchEvent(new Event('storage'));
+  }, [threads, drafts]);
+
+  useEffect(() => {
+    const load = () => {
+      setTokenUsage(Number(localStorage.getItem('usage_tokens') || '0'));
+      setCost(Number(localStorage.getItem('usage_cost') || '0'));
+    };
+    load();
+    const handler = () => load();
+    window.addEventListener('usage-updated', handler);
+    return () => window.removeEventListener('usage-updated', handler);
+  }, []);
+
+  // Whenever currentThread changes, fetch its messages
+  useEffect(() => {
+    async function fetchMessages() {
+      const currentThread = threads[index];
+      if (currentThread) {
+        const msgs = await getThreadMessages(currentThread.id);
+        setCurrentMessages(msgs);
+      } else {
+        setCurrentMessages([]);
+      }
+    }
+    fetchMessages();
+  }, [threads, index]);
+
+  // Early returns should come after all hooks
   if (threads.length === 0) return <div className="p-6">No threads.</div>;
 
   const currentThread = threads[index];
@@ -374,140 +553,6 @@ export default function TinderViewPage() {
   const movePrev = () => setIndex((i) => Math.max(i - 1, 0));
   const moveNext = () => setIndex((i) => Math.min(i + 1, threads.length - 1));
 
-  // Initialize data only on client
-  useEffect(() => {
-    (async () => {
-      await initMockDataIfNeeded(mockThreads, mockEmails);
-      const loadedThreads = await getThreads();
-      setThreads((loadedThreads as ThreadWithExtras[]).map(t => ({ ...t, __handled: t.__handled ?? false })));
-      setDrafts(loadDrafts());
-    })();
-  }, []);
-
-  // Listen for storage changes
-  useEffect(() => {
-    const handleStorageChange = async () => {
-      const loadedThreads = await getThreads();
-      setThreads(loadedThreads);
-      setDrafts(loadDrafts());
-    };
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
-  }, []);
-
-  // Sync localStorage whenever threads change
-  useEffect(() => {
-    threads.forEach(async t => {
-      const { __handled, ...threadFields } = t;
-      await updateThread(t.id, threadFields as Partial<EmailThread>);
-    });
-  }, [threads]);
-
-  // Only generate AI for the current thread on start
-  useEffect(() => {
-    if (!showSplash && threads.length > 0) {
-      (async () => {
-        const t = threads[index];
-        if (!t.summary || !drafts.find(d => d.thread_id === t.id && d.status === 'pending')) {
-          setLoadingAI(true);
-          const messages = await getThreadMessages(t.id);
-          let updatedThreads = [...threads];
-          let updatedDrafts = [...drafts];
-          // Generate summary if missing
-          if (!t.summary) {
-            try {
-              const resSum = await summarizeThread(t, messages, true);
-              if (resSum.success && resSum.data) {
-                updatedThreads[index].summary = resSum.data;
-                // Track usage
-                if (resSum.usage) {
-                  updateUsageTracking(resSum.usage.tokens, resSum.usage.cost);
-                }
-              }
-            } catch (error) {
-              console.error('Failed to generate summary:', error);
-            }
-          }
-          // Generate reply if missing and not already processed
-          const existingDraft = updatedDrafts.find(d => d.thread_id === t.id && d.status === 'pending');
-          if (!existingDraft && t.status !== 'approved' && t.status !== 'rejected') {
-            try {
-              const resRep = await generateReply(t, messages);
-              if (resRep.success && resRep.data) {
-                const newDraft: DraftReply = {
-                  id: `draft_${Date.now()}_${Math.random().toString(36).slice(2)}`,
-                  thread_id: t.id,
-                  user_id: 'user_jack',
-                  body: resRep.data,
-                  generated_at: new Date(),
-                  status: 'pending' as const,
-                  created_at: new Date(),
-                  updated_at: new Date(),
-                };
-                updatedDrafts.push(newDraft);
-                updatedThreads[index].has_draft = true;
-                // Track usage
-                if (resRep.usage) {
-                  updateUsageTracking(resRep.usage.tokens, resRep.usage.cost);
-                }
-              }
-            } catch (error) {
-              console.error('Failed to generate reply:', error);
-            }
-          }
-          setThreads(updatedThreads);
-          setDrafts(updatedDrafts);
-          // Preload next thread in background
-          if (index + 1 < threads.length) {
-            const next = updatedThreads[index + 1];
-            const nextMessages = await getThreadMessages(next.id);
-            if (!next.summary) {
-              summarizeThread(next, nextMessages, true).then(resSum => {
-                if (resSum.success && resSum.data) {
-                  const tCopy = [...updatedThreads];
-                  tCopy[index + 1].summary = resSum.data;
-                  setThreads(tCopy);
-                  // Track usage
-                  if (resSum.usage) {
-                    updateUsageTracking(resSum.usage.tokens, resSum.usage.cost);
-                  }
-                }
-              }).catch(error => console.error('Background summary failed:', error));
-            }
-            const nextDraft = updatedDrafts.find(d => d.thread_id === next.id && d.status === 'pending');
-            if (!nextDraft && next.status !== 'approved' && next.status !== 'rejected') {
-              generateReply(next, nextMessages).then(resRep => {
-                if (resRep.success && resRep.data) {
-                  const newDraft: DraftReply = {
-                    id: `draft_${Date.now()}_${Math.random().toString(36).slice(2)}`,
-                    thread_id: next.id,
-                    user_id: 'user_jack',
-                    body: resRep.data,
-                    generated_at: new Date(),
-                    status: 'pending' as const,
-                    created_at: new Date(),
-                    updated_at: new Date(),
-                  };
-                  const dCopy = [...updatedDrafts, newDraft];
-                  setDrafts(dCopy);
-                  const tCopy = [...updatedThreads];
-                  tCopy[index + 1].has_draft = true;
-                  setThreads(tCopy);
-                  // Track usage
-                  if (resRep.usage) {
-                    updateUsageTracking(resRep.usage.tokens, resRep.usage.cost);
-                  }
-                }
-              }).catch(error => console.error('Background reply failed:', error));
-            }
-          }
-          setLoadingAI(false);
-        }
-      })();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showSplash, index]);
-
   const thread = threads[index];
 
   const handleSaveEditedReply = () => {
@@ -519,19 +564,6 @@ export default function TinderViewPage() {
 
   // Card counter
   const cardCount = threads.length > 0 ? `Card ${index + 1} of ${threads.length}` : '';
-
-  // When all cards are processed, show celebration
-  useEffect(() => {
-    const allProcessed = threads.every(t => t.__handled === true);
-    if (allProcessed && threads.length > 0 && !showSplash && processedCount > 0) {
-      setShowCelebration(true);
-    }
-  }, [threads, showSplash, processedCount]);
-
-  // Ensure all threads start with status 'pending' unless already set
-  useEffect(() => {
-    setThreads(prev => prev.map(t => ({ ...t, status: t.status || 'pending', __handled: t.__handled || false })));
-  }, []);
 
   // Reset simulation logic
   const handleReset = () => {
@@ -550,35 +582,6 @@ export default function TinderViewPage() {
     // Sync with main app by dispatching storage event
     window.dispatchEvent(new Event('storage'));
   };
-
-  // Sync status changes with main app
-  useEffect(() => {
-    window.dispatchEvent(new Event('storage'));
-  }, [threads, drafts]);
-
-  useEffect(() => {
-    const load = () => {
-      setTokenUsage(Number(localStorage.getItem('usage_tokens') || '0'));
-      setCost(Number(localStorage.getItem('usage_cost') || '0'));
-    };
-    load();
-    const handler = () => load();
-    window.addEventListener('usage-updated', handler);
-    return () => window.removeEventListener('usage-updated', handler);
-  }, []);
-
-  // Whenever currentThread changes, fetch its messages
-  useEffect(() => {
-    async function fetchMessages() {
-      if (currentThread) {
-        const msgs = await getThreadMessages(currentThread.id);
-        setCurrentMessages(msgs);
-      } else {
-        setCurrentMessages([]);
-      }
-    }
-    fetchMessages();
-  }, [currentThread]);
 
   if (showSplash) {
     return (

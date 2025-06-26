@@ -5,19 +5,27 @@ import { Card } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 
 export default function SettingsPage() {
-  const [apiKey, setApiKey] = useState<string>(
-    localStorage.getItem('openai_api_key') || ''
-  );
+  const [apiKey, setApiKey] = useState<string>('');
   const [tokenUsage, setTokenUsage] = useState<number>(0);
   const [cost, setCost] = useState<number>(0);
+  const [mounted, setMounted] = useState(false);
 
   const [profile, setProfile] = useState({
-    name: localStorage.getItem('profile_name') || '',
-    email: localStorage.getItem('profile_email') || '',
-    avatar: localStorage.getItem('profile_avatar') || '',
+    name: '',
+    email: '',
+    avatar: '',
   });
 
   useEffect(() => {
+    setMounted(true);
+    // Load all localStorage data after mount
+    setApiKey(localStorage.getItem('openai_api_key') || '');
+    setProfile({
+      name: localStorage.getItem('profile_name') || '',
+      email: localStorage.getItem('profile_email') || '',
+      avatar: localStorage.getItem('profile_avatar') || '',
+    });
+    
     const load = () => {
       setTokenUsage(Number(localStorage.getItem('usage_tokens') || '0'));
       setCost(Number(localStorage.getItem('usage_cost') || '0'));
@@ -27,6 +35,10 @@ export default function SettingsPage() {
     window.addEventListener('usage-updated', handler);
     return () => window.removeEventListener('usage-updated', handler);
   }, []);
+
+  if (!mounted) {
+    return <div className="p-6 max-w-3xl mx-auto">Loading...</div>;
+  }
 
   const discounted = cost * 0.5;
 

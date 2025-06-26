@@ -1,5 +1,6 @@
 import '../app/globals.css';
 import NavBar from '../components/NavBar';
+import ErrorBoundary from '../components/ErrorBoundary';
 
 export const metadata = {
   title: 'Sunday',
@@ -12,10 +13,18 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en">
-      <body className="pt-16">
-        <NavBar />
-        {children}
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <meta
+          name="format-detection"
+          content="telephone=no, date=no, email=no, address=no"
+        />
+      </head>
+      <body className="pt-16" suppressHydrationWarning>
+        <ErrorBoundary>
+          <NavBar />
+          {children}
+        </ErrorBoundary>
       </body>
     </html>
   )

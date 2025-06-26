@@ -7,47 +7,40 @@ import { getThreads } from '../../lib/entity-storage';
 
 const LS_THREADS_KEY = 'threads';
 
-function loadThreads(): EmailThread[] {
-  if (typeof window === 'undefined') return mockThreads;
-  try {
-    const raw = localStorage.getItem(LS_THREADS_KEY);
-    if (raw) {
-      const arr = JSON.parse(raw);
-      return arr.map((t: any) => ({
-        ...t,
-        last_message_at: t.last_message_at ? new Date(t.last_message_at) : new Date(),
-        created_at: t.created_at ? new Date(t.created_at) : new Date(),
-        updated_at: t.updated_at ? new Date(t.updated_at) : new Date(),
-      }));
-    }
-  } catch {}
-  return mockThreads;
-}
-
 export default function TasksPage() {
   const [threads, setThreads] = useState<EmailThread[]>([]);
   const [mounted, setMounted] = useState(false);
 
+  // Load threads from localStorage after mount
   useEffect(() => {
     setMounted(true);
-    (async () => {
-      const loadedThreads = await getThreads();
-      setThreads(loadedThreads);
-    })();
+    async function loadData() {
+      try {
+        const loadedThreads = await getThreads();
+        setThreads(loadedThreads);
+      } catch {
+        setThreads([]);
+      }
+    }
+    loadData();
   }, []);
 
-  // Listen for storage changes
+  // Listen for storage changes from main app
   useEffect(() => {
     const handleStorageChange = async () => {
-      const loadedThreads = await getThreads();
-      setThreads(loadedThreads);
+      try {
+        const loadedThreads = await getThreads();
+        setThreads(loadedThreads);
+      } catch {
+        setThreads([]);
+      }
     };
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
   if (!mounted) {
-    return <div>Loading...</div>;
+    return <div className="p-6">Loading...</div>;
   }
 
   const pendingThreads = threads.filter(t => t.status === 'active' || t.status === 'pending');

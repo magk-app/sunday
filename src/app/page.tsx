@@ -18,24 +18,6 @@ type FolderKey = 'inbox' | 'important' | 'approved' | 'rejected';
 const LS_THREADS_KEY = 'threads';
 const LS_DRAFTS_KEY = 'drafts';
 
-function loadDrafts() {
-  if (typeof window === 'undefined') return [];
-  try {
-    const raw = localStorage.getItem(LS_DRAFTS_KEY);
-    if (raw) {
-      const arr = JSON.parse(raw);
-      return arr.map((d: any) => ({
-        ...d,
-        generated_at: d.generated_at ? new Date(d.generated_at) : new Date(),
-        created_at: d.created_at ? new Date(d.created_at) : new Date(),
-        updated_at: d.updated_at ? new Date(d.updated_at) : new Date(),
-        sent_at: d.sent_at ? new Date(d.sent_at) : undefined,
-      }));
-    }
-  } catch {}
-  return [];
-}
-
 // Usage tracking functions
 function updateUsageTracking(tokens: number, cost: number) {
   const prevTokens = Number(localStorage.getItem('usage_tokens') || '0');
@@ -55,6 +37,8 @@ export default function HomePage() {
   const [tokenUsage, setTokenUsage] = useState<number>(0);
   const [cost, setCost] = useState<number>(0);
   const [threadMessages, setThreadMessages] = useState<Email[]>([]);
+  const [kbPeople, setKbPeople] = useState([]);
+  const [kbProjects, setKbProjects] = useState([]);
 
   // Initialize data only on client to avoid hydration issues
   useEffect(() => {
@@ -63,7 +47,29 @@ export default function HomePage() {
       await initMockDataIfNeeded(mockThreads, mockEmails);
       const loadedThreads = await getThreads();
       setThreads(loadedThreads);
-      setDrafts(loadDrafts());
+      // Load drafts from localStorage
+      try {
+        const raw = localStorage.getItem(LS_DRAFTS_KEY);
+        if (raw) {
+          const arr = JSON.parse(raw);
+          setDrafts(arr.map((d: any) => ({
+            ...d,
+            generated_at: d.generated_at ? new Date(d.generated_at) : new Date(),
+            created_at: d.created_at ? new Date(d.created_at) : new Date(),
+            updated_at: d.updated_at ? new Date(d.updated_at) : new Date(),
+            sent_at: d.sent_at ? new Date(d.sent_at) : undefined,
+          })));
+        } else {
+          setDrafts([]);
+        }
+      } catch { setDrafts([]); }
+      // Load KB people/projects from localStorage
+      try {
+        setKbPeople(JSON.parse(localStorage.getItem('kb_people') || '[]') || []);
+      } catch { setKbPeople([]); }
+      try {
+        setKbProjects(JSON.parse(localStorage.getItem('kb_projects') || '[]') || []);
+      } catch { setKbProjects([]); }
       const firstThread = loadedThreads[0];
       if (firstThread) {
         setSelectedThreadId(firstThread.id);
@@ -110,7 +116,22 @@ export default function HomePage() {
     const handleStorageChange = async () => {
       const loadedThreads = await getThreads();
       setThreads(loadedThreads);
-      setDrafts(loadDrafts());
+      // Load drafts from localStorage
+      try {
+        const raw = localStorage.getItem(LS_DRAFTS_KEY);
+        if (raw) {
+          const arr = JSON.parse(raw);
+          setDrafts(arr.map((d: any) => ({
+            ...d,
+            generated_at: d.generated_at ? new Date(d.generated_at) : new Date(),
+            created_at: d.created_at ? new Date(d.created_at) : new Date(),
+            updated_at: d.updated_at ? new Date(d.updated_at) : new Date(),
+            sent_at: d.sent_at ? new Date(d.sent_at) : undefined,
+          })));
+        } else {
+          setDrafts([]);
+        }
+      } catch { setDrafts([]); }
     };
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
@@ -267,10 +288,6 @@ export default function HomePage() {
     // Dispatch storage event to sync with Tinder
     window.dispatchEvent(new Event('storage'));
   };
-
-  // When rendering ThreadDetail, only use KB people/projects
-  const kbPeople = typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('kb_people') || '[]') || []) : [];
-  const kbProjects = typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('kb_projects') || '[]') || []) : [];
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">

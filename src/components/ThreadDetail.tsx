@@ -40,6 +40,7 @@ export default function ThreadDetail({
   onCreditsUsed,
   onSummaryGenerated,
 }: ThreadDetailProps) {
+  // All hooks must be at the top, before any return
   const [isSending, setIsSending] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [summary, setSummary] = useState<string | null>(thread?.summary || null);
@@ -56,6 +57,19 @@ export default function ThreadDetail({
   const [streamingReply, setStreamingReply] = useState<string>('');
   const [hasStreamedReply, setHasStreamedReply] = useState(false);
 
+  useEffect(() => {
+    if (isCollapsed && !summary && !summaryLoading && thread) {
+      handleGenerateSummary();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isCollapsed]);
+
+  // Reset summary state when thread prop changes
+  useEffect(() => {
+    setSummary(thread?.summary || null);
+  }, [thread?.id]);
+
+  // All hooks above, now do the early return
   if (!thread) {
     return (
       <div className="flex-1 flex items-center justify-center text-gray-500">
@@ -120,17 +134,6 @@ export default function ThreadDetail({
     
     setSummaryLoading(false);
   };
-
-  useEffect(() => {
-    if (isCollapsed && !summary && !summaryLoading) {
-      handleGenerateSummary();
-    }
-  }, [isCollapsed]);
-
-  // Reset summary state when thread prop changes
-  useEffect(() => {
-    setSummary(thread?.summary || null);
-  }, [thread?.id]);
 
   const relatedPeople = people.filter((p) => thread.participants.includes(p.email));
   const relatedProjects = projects.filter((proj) => proj.participants.some(pid => relatedPeople.find(rp => rp.id === pid)));

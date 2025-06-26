@@ -35,11 +35,14 @@ class OpenAIService {
 
   private async makeRequest(endpoint: string, body: any): Promise<any> {
     if (!this.apiKey) {
-      console.warn('[OpenAIService] Missing API key – attempting request anyway (may fail)');
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('[OpenAIService] Missing API key – attempting request anyway (may fail)');
+      }
     }
-
-    console.log(`[OpenAIService] → POST ${endpoint}`);
-    console.log('[OpenAIService] Request body:', body);
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[OpenAIService] → POST ${endpoint}`);
+      console.log('[OpenAIService] Request body:', body);
+    }
 
     const response = await fetch(`${this.baseURL}${endpoint}`, {
       method: 'POST',
@@ -51,10 +54,13 @@ class OpenAIService {
     });
 
     const json = await response.json();
-    console.log(`[OpenAIService] ← Response from ${endpoint}:`, json);
+    
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[OpenAIService] ← Response from ${endpoint}:`, json);
+    }
 
     if (!response.ok) {
-      throw new Error(json.error?.message || 'OpenAI API error');
+      throw new Error(json.error?.message || `HTTP ${response.status}`);
     }
 
     return json;
@@ -124,7 +130,9 @@ Summary:`;
       const summary = isSafe ? rawSummary : '⚠️ Content removed due to safety flags.';
       const cost = this.calculateCost(data.usage, summarizeModel);
 
-      console.log('[OpenAIService] Generated summary:', summary);
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[OpenAIService] Generated summary:', summary);
+      }
 
       return {
         success: true,
@@ -186,7 +194,9 @@ Reply:`;
       const reply = isSafe ? rawReply : '⚠️ AI reply removed due to safety flags.';
       const cost = this.calculateCost(data.usage, replyModel);
 
-      console.log('[OpenAIService] Generated reply:', reply);
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[OpenAIService] Generated reply:', reply);
+      }
 
       return {
         success: true,
@@ -357,7 +367,9 @@ Improved Reply:`;
       const reply = isSafe ? improvedReply : '⚠️ Improved reply removed due to safety flags.';
       const cost = this.calculateCost(data.usage, model);
 
-      console.log('[OpenAIService] Generated improved reply:', reply);
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[OpenAIService] Generated improved reply:', reply);
+      }
 
       return {
         success: true,
