@@ -93,36 +93,76 @@ export default function ProjectFormModal({ existing, onSave, triggerLabel, open:
 
         {/* Sections */}
         <h3 className="font-semibold mb-2 mt-4">Basics</h3>
-        <div className="mb-2">
-          <label className="text-xs font-semibold text-gray-700 mb-1 block" htmlFor="name">Project Name</label>
-          <Input id="name" name="name" placeholder="e.g. Project Alpha" value={form.name} onChange={handleChange} />
-        </div>
-        <div className="mb-2">
-          <label className="text-xs font-semibold text-gray-700 mb-1 block" htmlFor="description">Description</label>
-          <Textarea id="description" name="description" placeholder="e.g. A short summary of the project..." value={form.description} onChange={handleChange} />
-        </div>
-
-        <h3 className="font-semibold mb-2 mt-6">Additional Details</h3>
-        <div className="mb-2">
-          <label className="text-xs font-semibold text-gray-700 mb-1 block" htmlFor="summary">Notes</label>
-          <Input id="summary" name="summary" placeholder="e.g. Use this field for any extra notes or context" value={form.summary} onChange={handleChange} />
-        </div>
-        <div className="mb-2">
-          <label className="text-xs font-semibold text-gray-700 mb-1 block" htmlFor="status">Status</label>
-          <select id="status" name="status" value={form.status} onChange={handleChange} className="border p-2 rounded w-full">
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-            <option value="archived">Archived</option>
-          </select>
-        </div>
-        <div className="mb-2">
-          <label className="text-xs font-semibold text-gray-700 mb-1 block" htmlFor="participants">Participants</label>
-          <Input id="participants" name="participants" value={form.participants} onChange={handleChange} />
-          <p className="text-xs text-gray-500 mt-1">Enter participants as comma-separated values</p>
-        </div>
-        <div className="mb-2">
-          <label className="text-xs font-semibold text-gray-700 mb-1 block" htmlFor="tags">Tags</label>
-          <Input id="tags" name="tags" placeholder="e.g. design, ai, research" value={form.tags} onChange={handleChange} />
+        <div className="space-y-4">
+          <div>
+            <label className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1 block" htmlFor="name">Project Name</label>
+            <Input
+              className="dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              id="name"
+              name="name"
+              placeholder="e.g. Project Alpha"
+              value={form.name}
+              onChange={handleChange}
+            />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1 block" htmlFor="description">Description</label>
+            <Textarea
+              className="dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              id="description"
+              name="description"
+              placeholder="e.g. A short summary of the project..."
+              value={form.description}
+              onChange={handleChange}
+            />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1 block" htmlFor="summary">Notes</label>
+            <Textarea
+              className="dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              id="summary"
+              name="summary"
+              placeholder="e.g. Use this field for any extra notes or context"
+              value={form.summary}
+              onChange={handleChange}
+            />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1 block" htmlFor="status">Status</label>
+            <select
+              className="w-full p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              id="status"
+              name="status"
+              value={form.status}
+              onChange={handleChange}
+            >
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+              <option value="archived">Archived</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1 block" htmlFor="participants">Participants</label>
+            <Input
+              className="dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              id="participants"
+              name="participants"
+              value={form.participants}
+              onChange={handleChange}
+            />
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Enter participants as comma-separated values</p>
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1 block" htmlFor="tags">Tags</label>
+            <Input
+              className="dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              id="tags"
+              name="tags"
+              placeholder="e.g. design, ai, research"
+              value={form.tags}
+              onChange={handleChange}
+            />
+          </div>
         </div>
 
         {/* AI Assist */}

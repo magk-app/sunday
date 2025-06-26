@@ -100,20 +100,49 @@ export default function PersonFormModal({ existing, onSave, triggerLabel, open: 
         <h3 className="font-semibold mb-2 mt-4">Basic Information</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="text-xs font-semibold text-gray-700 mb-1 block" htmlFor="name">Name</label>
-            <Input id="name" name="name" placeholder="e.g. John Doe" value={form.name} onChange={handleChange} />
+            <label className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1 block" htmlFor="name">Name</label>
+            <Input
+              className="dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              id="name"
+              name="name"
+              placeholder="e.g. John Doe"
+              value={form.name}
+              onChange={handleChange}
+            />
           </div>
           <div>
-            <label className="text-xs font-semibold text-gray-700 mb-1 block" htmlFor="email">Email</label>
-            <Input id="email" name="email" placeholder="e.g. john@example.com" value={form.email} onChange={handleChange} />
+            <label className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1 block" htmlFor="email">Email</label>
+            <Input
+              className="dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              id="email"
+              name="email"
+              placeholder="e.g. john@example.com"
+              type="email"
+              value={form.email}
+              onChange={handleChange}
+            />
           </div>
           <div>
-            <label className="text-xs font-semibold text-gray-700 mb-1 block" htmlFor="phone">Phone</label>
-            <Input id="phone" name="phone" placeholder="e.g. +1 555-1234" value={form.phone} onChange={handleChange} />
+            <label className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1 block" htmlFor="phone">Phone</label>
+            <Input
+              className="dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              id="phone"
+              name="phone"
+              placeholder="e.g. +1 555-1234"
+              value={form.phone}
+              onChange={handleChange}
+            />
           </div>
           <div>
-            <label className="text-xs font-semibold text-gray-700 mb-1 block" htmlFor="avatarUrl">Avatar URL</label>
-            <Input id="avatarUrl" name="avatarUrl" placeholder="e.g. https://..." value={form.avatarUrl} onChange={handleChange} />
+            <label className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1 block" htmlFor="avatarUrl">Avatar URL</label>
+            <Input
+              className="dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              id="avatarUrl"
+              name="avatarUrl"
+              placeholder="e.g. https://..."
+              value={form.avatarUrl}
+              onChange={handleChange}
+            />
           </div>
         </div>
 
@@ -121,28 +150,63 @@ export default function PersonFormModal({ existing, onSave, triggerLabel, open: 
         <h3 className="font-semibold mb-2 mt-6">Work</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="text-xs font-semibold text-gray-700 mb-1 block" htmlFor="company">Company</label>
-            <Input id="company" name="company" placeholder="e.g. Acme Corp" value={form.company} onChange={handleChange} />
+            <label className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1 block" htmlFor="company">Company</label>
+            <Input
+              className="dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              id="company"
+              name="company"
+              placeholder="e.g. Acme Corp"
+              value={form.company}
+              onChange={handleChange}
+            />
           </div>
           <div>
-            <label className="text-xs font-semibold text-gray-700 mb-1 block" htmlFor="role">Role</label>
-            <Input id="role" name="role" placeholder="e.g. Product Manager" value={form.role} onChange={handleChange} />
+            <label className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1 block" htmlFor="role">Role</label>
+            <Input
+              className="dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              id="role"
+              name="role"
+              placeholder="e.g. Product Manager"
+              value={form.role}
+              onChange={handleChange}
+            />
           </div>
         </div>
 
         {/* Section 3: Meta */}
         <h3 className="font-semibold mb-2 mt-6">Additional Details</h3>
         <div className="mb-2">
-          <label className="text-xs font-semibold text-gray-700 mb-1 block" htmlFor="summary">Summary</label>
-          <Textarea id="summary" name="summary" placeholder="e.g. Key skills, summary, etc." value={form.summary} onChange={handleChange} />
+          <label className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1 block" htmlFor="summary">Summary</label>
+          <Textarea
+            className="dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+            id="summary"
+            name="summary"
+            placeholder="e.g. Key skills, summary, etc."
+            value={form.summary}
+            onChange={handleChange}
+          />
         </div>
         <div className="mb-2">
-          <label className="text-xs font-semibold text-gray-700 mb-1 block" htmlFor="notes">Notes</label>
-          <Textarea id="notes" name="notes" placeholder="e.g. Any extra notes or context" value={form.notes} onChange={handleChange} />
+          <label className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1 block" htmlFor="notes">Notes</label>
+          <Textarea
+            className="dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+            id="notes"
+            name="notes"
+            placeholder="e.g. Any extra notes or context"
+            value={form.notes}
+            onChange={handleChange}
+          />
         </div>
         <div className="mb-2">
-          <label className="text-xs font-semibold text-gray-700 mb-1 block" htmlFor="tags">Tags</label>
-          <Input id="tags" name="tags" placeholder="e.g. design, ai, research" value={form.tags} onChange={handleChange} />
+          <label className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1 block" htmlFor="tags">Tags</label>
+          <Input
+            className="dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+            id="tags"
+            name="tags"
+            placeholder="e.g. design, ai, research"
+            value={form.tags}
+            onChange={handleChange}
+          />
         </div>
 
         {/* AI Assist Section */}
@@ -161,8 +225,8 @@ export default function PersonFormModal({ existing, onSave, triggerLabel, open: 
         {error && <p className="text-red-600 mt-2 text-sm">{error}</p>}
 
         <ModalFooter>
-          <button type="button" className="block w-full text-left px-3 py-1 text-sm hover:bg-gray-100 rounded transition" onClick={handleSave} disabled={loading}>{existing ? 'Save' : 'Add'}</button>
-          <button type="button" className="block w-full text-left px-3 py-1 text-sm hover:bg-gray-100 rounded transition" onClick={() => setOpen(false)}>Cancel</button>
+          <button type="button" className="block w-full text-left px-3 py-1 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition bg-blue-600 dark:bg-blue-500 text-white hover:bg-blue-700 dark:hover:bg-blue-600" onClick={handleSave} disabled={loading}>{existing ? 'Save' : 'Add'}</button>
+          <button type="button" className="block w-full text-left px-3 py-1 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition bg-gray-500 dark:bg-gray-600 text-white hover:bg-gray-600 dark:hover:bg-gray-700" onClick={() => setOpen(false)}>Cancel</button>
         </ModalFooter>
       </ModalContent>
     </Modal>
