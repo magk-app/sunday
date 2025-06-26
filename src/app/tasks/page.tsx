@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { mockThreads } from '../../mock/threads';
 import { Card } from '../../components/ui/card';
 import type { EmailThread } from '../../types';
+import { getThreads } from '../../lib/entity-storage';
 
 const LS_THREADS_KEY = 'threads';
 
@@ -29,15 +30,18 @@ export default function TasksPage() {
 
   useEffect(() => {
     setMounted(true);
-    setThreads(loadThreads());
+    (async () => {
+      const loadedThreads = await getThreads();
+      setThreads(loadedThreads);
+    })();
   }, []);
 
   // Listen for storage changes
   useEffect(() => {
-    const handleStorageChange = () => {
-      setThreads(loadThreads());
+    const handleStorageChange = async () => {
+      const loadedThreads = await getThreads();
+      setThreads(loadedThreads);
     };
-
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
   }, []);

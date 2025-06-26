@@ -82,12 +82,4 @@ export const mockProjects: Project[] = [
 ];
 
 // Helper to get thread messages
-export function getThreadMessages(threadId: string): Email[] {
-  const threadMap: Record<string, string[]> = {
-    thread_ark: ['email_ark_1', 'email_ark_2', 'email_ark_3', 'email_ark_4', 'email_ark_5'],
-    thread_texts: ['email_texts_1', 'email_texts_2', 'email_texts_3', 'email_texts_4', 'email_texts_5', 'email_texts_6', 'email_texts_7'],
-  };
-  
-  const emailIds = threadMap[threadId] || [];
-  return mockEmails.filter(email => emailIds.includes(email.id));
-} 
+// REMOVE getThreadMessages from here. Use the async version from entity-storage.ts instead. 

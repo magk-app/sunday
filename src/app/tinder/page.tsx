@@ -1,34 +1,23 @@
 'use client';
 import React, { useEffect, useState, useRef } from 'react';
-import { mockThreads, mockDraftReplies, getThreadMessages } from '../../mock/threads';
+import { mockThreads } from '../../mock/threads';
 import TinderThreadCard from '../../components/TinderThreadCard';
 import { Button } from '../../components/ui/button';
 import type { EmailThread, DraftReply } from '../../types';
-import { openaiService } from '../../lib/openai-service';
+import type { Email } from '../../types';
+import { summarizeThread } from '../../lib/ai/summarize';
+import { generateReply, improveReply, improveReplyStream } from '../../lib/ai/reply';
+import { analyzeThreadFull } from '../../lib/ai/extract';
 import { useSwipeable } from 'react-swipeable';
+import { getThreads, updateThread, createThread, deleteThread, initMockDataIfNeeded, getThreadMessages } from '../../lib/entity-storage';
+import StatusBar from '../../components/StatusBar';
+import { mockEmails } from '../../mock/emails';
 
 interface ThreadWithExtras extends EmailThread { __handled?: boolean }
 
 // Helpers for localStorage persistence
 const LS_THREADS_KEY = 'threads';
 const LS_DRAFTS_KEY = 'drafts';
-
-function loadThreads(): ThreadWithExtras[] {
-  try {
-    const raw = localStorage.getItem(LS_THREADS_KEY);
-    if (raw) {
-      const arr = JSON.parse(raw);
-      // Parse dates
-      return arr.map((t: any) => ({
-        ...t,
-        last_message_at: t.last_message_at ? new Date(t.last_message_at) : undefined,
-        created_at: t.created_at ? new Date(t.created_at) : undefined,
-        updated_at: t.updated_at ? new Date(t.updated_at) : undefined,
-      }));
-    }
-  } catch {}
-  return [...mockThreads];
-}
 
 function loadDrafts(): DraftReply[] {
   try {
@@ -44,15 +33,7 @@ function loadDrafts(): DraftReply[] {
       }));
     }
   } catch {}
-  return [...mockDraftReplies];
-}
-
-function saveThreads(threads: ThreadWithExtras[]) {
-  localStorage.setItem(LS_THREADS_KEY, JSON.stringify(threads));
-}
-
-function saveDrafts(drafts: DraftReply[]) {
-  localStorage.setItem(LS_DRAFTS_KEY, JSON.stringify(drafts));
+  return [];
 }
 
 // Usage tracking functions
@@ -65,7 +46,7 @@ function updateUsageTracking(tokens: number, cost: number) {
 }
 
 export default function TinderViewPage() {
-  const [threads, setThreads] = useState<ThreadWithExtras[]>(loadThreads());
+  const [threads, setThreads] = useState<ThreadWithExtras[]>([]);
   const [drafts, setDrafts] = useState<DraftReply[]>(loadDrafts());
   const [index, setIndex] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -83,6 +64,9 @@ export default function TinderViewPage() {
   const [showExpand, setShowExpand] = useState(false);
   const [showImprove, setShowImprove] = useState(false);
   const [jumpTarget, setJumpTarget] = useState<'summary'|'reply'>('summary');
+  const [tokenUsage, setTokenUsage] = useState<number>(0);
+  const [cost, setCost] = useState<number>(0);
+  const [currentMessages, setCurrentMessages] = useState<Email[]>([]);
 
   // Refs for scrolling
   const cardAreaRef = useRef<HTMLDivElement>(null);
@@ -98,10 +82,9 @@ export default function TinderViewPage() {
                            .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())[0] || 
                       null;
 
-  const updateThread = (updated: Partial<ThreadWithExtras>) => {
+  const updateThreadState = (updated: Partial<ThreadWithExtras>) => {
     setThreads(prev => {
       const newArr = prev.map((t, idx) => idx === index ? { ...t, ...updated } : t);
-      saveThreads(newArr);
       return newArr;
     });
   };
@@ -110,7 +93,6 @@ export default function TinderViewPage() {
     if (!currentDraft) return;
     setDrafts(prev => {
       const newArr = prev.map(d => d.id === currentDraft.id ? { ...d, ...updated } : d);
-      saveDrafts(newArr);
       return newArr;
     });
   };
@@ -135,15 +117,16 @@ export default function TinderViewPage() {
     if (action === 'approve' || action === 'auto_approve_with_kb') {
       setProcessedCount((c) => c + 1);
       setTimeSaved((t) => t + 5); // 5 min per email
-      updateThread({ status: 'approved', __handled: true });
+      updateThreadState({ status: 'approved', __handled: true });
       if (currentDraft) updateDraft({ status: 'sent', sent_at: new Date() });
-      
+      // Persist to storage
+      await updateThread(current.id, { status: 'approved' as EmailThread['status'] });
       // If auto-approve with KB, also save to knowledge base
       if (action === 'auto_approve_with_kb') {
         setIsProcessing(true);
-        const messages = getThreadMessages(current.id);
+        const messages = await getThreadMessages(current.id);
         try {
-          const res = await openaiService.analyzeThreadFull(current, messages);
+          const res = await analyzeThreadFull(current, messages);
           if (res.success && res.data) {
             try {
               const people = JSON.parse(localStorage.getItem('kb_people') || '[]');
@@ -173,30 +156,28 @@ export default function TinderViewPage() {
       } else {
         setNotification('Thread approved!');
       }
-      
       setTimeout(() => {
         setIndex(i => Math.min(i + 1, threads.length - 1));
       }, 300);
     } else if (action === 'reject_archive' || action === 'reject_with_kb') {
       setProcessedCount((c) => c + 1);
       setTimeSaved((t) => t + 5); // 5 min per email
-      updateThread({ status: 'rejected', __handled: true, has_draft: false });
-      
+      updateThreadState({ status: 'rejected', __handled: true, has_draft: false });
       // Delete the draft completely when rejecting
       if (currentDraft) {
         setDrafts(prev => {
           const updated = prev.filter(d => d.id !== currentDraft.id);
-          saveDrafts(updated);
           return updated;
         });
       }
-      
+      // Persist to storage
+      await updateThread(current.id, { status: 'rejected' as EmailThread['status'], has_draft: false });
       // If reject with KB, also save to knowledge base
       if (action === 'reject_with_kb') {
         setIsProcessing(true);
-        const messages = getThreadMessages(current.id);
+        const messages = await getThreadMessages(current.id);
         try {
-          const res = await openaiService.analyzeThreadFull(current, messages);
+          const res = await analyzeThreadFull(current, messages);
           if (res.success && res.data) {
             try {
               const people = JSON.parse(localStorage.getItem('kb_people') || '[]');
@@ -226,15 +207,14 @@ export default function TinderViewPage() {
       } else {
         setNotification('Reply rejected & deleted');
       }
-      
       setTimeout(() => {
         setIndex(i => Math.min(i + 1, threads.length - 1));
       }, 300);
     } else if (action === 'save_kb') {
       setIsProcessing(true);
-      const messages = getThreadMessages(current.id);
+      const messages = await getThreadMessages(current.id);
       try {
-        const res = await openaiService.analyzeThreadFull(current, messages);
+        const res = await analyzeThreadFull(current, messages);
         if (res.success && res.data) {
           try {
             const people = JSON.parse(localStorage.getItem('kb_people') || '[]');
@@ -335,8 +315,8 @@ export default function TinderViewPage() {
       setIsProcessing(true);
       
       try {
-        const messages = getThreadMessages(current.id);
-        const result = await openaiService.generateReply(current, messages);
+        const messages = await getThreadMessages(current.id);
+        const result = await generateReply(current, messages);
         
         if (result.success && result.data) {
           const newDraft: DraftReply = {
@@ -352,10 +332,11 @@ export default function TinderViewPage() {
           
           setDrafts(prev => {
             const updated = [...prev, newDraft];
-            saveDrafts(updated);
             return updated;
           });
-          updateThread({ has_draft: true });
+          updateThreadState({ has_draft: true, status: 'pending' });
+          // Persist to storage
+          await updateThread(current.id, { has_draft: true, status: 'pending' });
           
           // Track usage
           if (result.usage) {
@@ -393,20 +374,49 @@ export default function TinderViewPage() {
   const movePrev = () => setIndex((i) => Math.max(i - 1, 0));
   const moveNext = () => setIndex((i) => Math.min(i + 1, threads.length - 1));
 
+  // Initialize data only on client
+  useEffect(() => {
+    (async () => {
+      await initMockDataIfNeeded(mockThreads, mockEmails);
+      const loadedThreads = await getThreads();
+      setThreads((loadedThreads as ThreadWithExtras[]).map(t => ({ ...t, __handled: t.__handled ?? false })));
+      setDrafts(loadDrafts());
+    })();
+  }, []);
+
+  // Listen for storage changes
+  useEffect(() => {
+    const handleStorageChange = async () => {
+      const loadedThreads = await getThreads();
+      setThreads(loadedThreads);
+      setDrafts(loadDrafts());
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
+  // Sync localStorage whenever threads change
+  useEffect(() => {
+    threads.forEach(async t => {
+      const { __handled, ...threadFields } = t;
+      await updateThread(t.id, threadFields as Partial<EmailThread>);
+    });
+  }, [threads]);
+
   // Only generate AI for the current thread on start
   useEffect(() => {
     if (!showSplash && threads.length > 0) {
-      const t = threads[index];
-      if (!t.summary || !drafts.find(d => d.thread_id === t.id && d.status === 'pending')) {
-        setLoadingAI(true);
-        const messages = getThreadMessages(t.id);
-        (async () => {
+      (async () => {
+        const t = threads[index];
+        if (!t.summary || !drafts.find(d => d.thread_id === t.id && d.status === 'pending')) {
+          setLoadingAI(true);
+          const messages = await getThreadMessages(t.id);
           let updatedThreads = [...threads];
           let updatedDrafts = [...drafts];
           // Generate summary if missing
           if (!t.summary) {
             try {
-              const resSum = await openaiService.summarizeThread(t, messages, true);
+              const resSum = await summarizeThread(t, messages, true);
               if (resSum.success && resSum.data) {
                 updatedThreads[index].summary = resSum.data;
                 // Track usage
@@ -422,7 +432,7 @@ export default function TinderViewPage() {
           const existingDraft = updatedDrafts.find(d => d.thread_id === t.id && d.status === 'pending');
           if (!existingDraft && t.status !== 'approved' && t.status !== 'rejected') {
             try {
-              const resRep = await openaiService.generateReply(t, messages);
+              const resRep = await generateReply(t, messages);
               if (resRep.success && resRep.data) {
                 const newDraft: DraftReply = {
                   id: `draft_${Date.now()}_${Math.random().toString(36).slice(2)}`,
@@ -447,20 +457,16 @@ export default function TinderViewPage() {
           }
           setThreads(updatedThreads);
           setDrafts(updatedDrafts);
-          saveThreads(updatedThreads);
-          saveDrafts(updatedDrafts);
-          setLoadingAI(false);
           // Preload next thread in background
           if (index + 1 < threads.length) {
             const next = updatedThreads[index + 1];
-            const nextMessages = getThreadMessages(next.id);
+            const nextMessages = await getThreadMessages(next.id);
             if (!next.summary) {
-              openaiService.summarizeThread(next, nextMessages, true).then(resSum => {
+              summarizeThread(next, nextMessages, true).then(resSum => {
                 if (resSum.success && resSum.data) {
                   const tCopy = [...updatedThreads];
                   tCopy[index + 1].summary = resSum.data;
                   setThreads(tCopy);
-                  saveThreads(tCopy);
                   // Track usage
                   if (resSum.usage) {
                     updateUsageTracking(resSum.usage.tokens, resSum.usage.cost);
@@ -470,7 +476,7 @@ export default function TinderViewPage() {
             }
             const nextDraft = updatedDrafts.find(d => d.thread_id === next.id && d.status === 'pending');
             if (!nextDraft && next.status !== 'approved' && next.status !== 'rejected') {
-              openaiService.generateReply(next, nextMessages).then(resRep => {
+              generateReply(next, nextMessages).then(resRep => {
                 if (resRep.success && resRep.data) {
                   const newDraft: DraftReply = {
                     id: `draft_${Date.now()}_${Math.random().toString(36).slice(2)}`,
@@ -484,11 +490,9 @@ export default function TinderViewPage() {
                   };
                   const dCopy = [...updatedDrafts, newDraft];
                   setDrafts(dCopy);
-                  saveDrafts(dCopy);
                   const tCopy = [...updatedThreads];
                   tCopy[index + 1].has_draft = true;
                   setThreads(tCopy);
-                  saveThreads(tCopy);
                   // Track usage
                   if (resRep.usage) {
                     updateUsageTracking(resRep.usage.tokens, resRep.usage.cost);
@@ -497,8 +501,9 @@ export default function TinderViewPage() {
               }).catch(error => console.error('Background reply failed:', error));
             }
           }
-        })();
-      }
+          setLoadingAI(false);
+        }
+      })();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showSplash, index]);
@@ -511,15 +516,6 @@ export default function TinderViewPage() {
     setIsEditing(false);
     setNotification('Draft updated');
   };
-
-  // Sync localStorage when arrays change
-  useEffect(() => {
-    saveThreads(threads);
-  }, [threads]);
-
-  useEffect(() => {
-    saveDrafts(drafts);
-  }, [drafts]);
 
   // Card counter
   const cardCount = threads.length > 0 ? `Card ${index + 1} of ${threads.length}` : '';
@@ -544,8 +540,6 @@ export default function TinderViewPage() {
     let resetDrafts = drafts.map(d => ({ ...d, status: 'pending' as DraftReply['status'] }));
     setThreads(resetThreads);
     setDrafts(resetDrafts);
-    saveThreads(resetThreads);
-    saveDrafts(resetDrafts);
     setIndex(0);
     setProcessedCount(0);
     setTimeSaved(0);
@@ -561,6 +555,30 @@ export default function TinderViewPage() {
   useEffect(() => {
     window.dispatchEvent(new Event('storage'));
   }, [threads, drafts]);
+
+  useEffect(() => {
+    const load = () => {
+      setTokenUsage(Number(localStorage.getItem('usage_tokens') || '0'));
+      setCost(Number(localStorage.getItem('usage_cost') || '0'));
+    };
+    load();
+    const handler = () => load();
+    window.addEventListener('usage-updated', handler);
+    return () => window.removeEventListener('usage-updated', handler);
+  }, []);
+
+  // Whenever currentThread changes, fetch its messages
+  useEffect(() => {
+    async function fetchMessages() {
+      if (currentThread) {
+        const msgs = await getThreadMessages(currentThread.id);
+        setCurrentMessages(msgs);
+      } else {
+        setCurrentMessages([]);
+      }
+    }
+    fetchMessages();
+  }, [currentThread]);
 
   if (showSplash) {
     return (
@@ -746,6 +764,7 @@ export default function TinderViewPage() {
             setShowImprove={setShowImprove}
             jumpTarget={jumpTarget}
             setJumpTarget={setJumpTarget}
+            messages={currentMessages}
           />
         )}
       </div>
