@@ -132,3 +132,7 @@ test-results.xml
 
 # Archive
 archive/
+
+# MCP and other apps
+planning/mcp/
+
