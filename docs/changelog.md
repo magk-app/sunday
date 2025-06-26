@@ -1,4 +1,7 @@
 # Changelog
+## [0.3.0] – Real Data Integration (2024-06-26)
+
+## [0.2.4] - IN PROGRESS (Knowledge Base and Bug Fixes)
 
 ## [0.2.0] – First Major Sprint (2024-06-25)
 ### Features
