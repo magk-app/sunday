@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Avatar } from './ui/avatar';
+import { Textarea } from './ui/textarea';
 import { openaiService } from '../lib/openai-service';
 import Link from 'next/link';
 
@@ -16,6 +17,7 @@ interface ThreadDetailProps {
   onApprove: (draftId: string) => void;
   onReject: (draftId: string) => void;
   onGenerateReply: () => void;
+  onUpdateDraft: (draftId: string, newBody: string) => void;
   onNotify: (message: string, type: 'success' | 'error') => void;
   onCreditsUsed: (amount: number, tokens: number, cost: number) => void;
   onSummaryGenerated: (threadId: string, summary: string, importance?: 'urgent' | 'high' | 'medium' | 'low') => void;
@@ -30,6 +32,7 @@ export default function ThreadDetail({
   onApprove,
   onReject,
   onGenerateReply,
+  onUpdateDraft,
   onNotify,
   onCreditsUsed,
   onSummaryGenerated,
@@ -44,6 +47,11 @@ export default function ThreadDetail({
   const [editedBody, setEditedBody] = useState<string>('');
   const [activePerson, setActivePerson] = useState<Person | null>(null);
   const [isSavingKB, setIsSavingKB] = useState(false);
+  const [showImproveChat, setShowImproveChat] = useState(false);
+  const [chatInput, setChatInput] = useState('');
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [streamingReply, setStreamingReply] = useState<string>('');
+  const [hasStreamedReply, setHasStreamedReply] = useState(false);
 
   if (!thread) {
     return (
@@ -67,35 +75,52 @@ export default function ThreadDetail({
     setIsGenerating(false);
   };
 
-  const generateSummary = async () => {
+  const handleGenerateSummary = async () => {
     if (!thread) return;
     setSummaryLoading(true);
+    
     try {
       const result = await openaiService.summarizeThread(thread, messages);
+      const impRes = await openaiService.classifyImportance(thread, messages);
+      
       if (result.success && result.data) {
         setSummary(result.data);
-        const impRes = await openaiService.classifyImportance(thread, messages);
         const importance = impRes.success ? impRes.data : undefined;
-        onSummaryGenerated(thread.id, result.data, importance as any);
+        onSummaryGenerated(thread.id, result.data, importance);
+        onNotify('✨ Summary generated!', 'success');
+        
+        // Track usage for both calls
         if (result.usage) {
-          const creditsUsed = Math.ceil(result.usage.tokens / 100);
-          onCreditsUsed(creditsUsed, result.usage.tokens, result.usage.cost);
-          onNotify(`OpenAI accessed ✔️ Tokens: ${result.usage.tokens}, Cost: $${result.usage.cost.toFixed(4)}`, 'success');
+          const prevTokens = Number(localStorage.getItem('usage_tokens') || '0');
+          const prevCost = Number(localStorage.getItem('usage_cost') || '0');
+          let totalTokens = result.usage.tokens;
+          let totalCost = result.usage.cost;
+          
+          if (impRes.usage) {
+            totalTokens += impRes.usage.tokens;
+            totalCost += impRes.usage.cost;
+          }
+          
+          localStorage.setItem('usage_tokens', String(prevTokens + totalTokens));
+          localStorage.setItem('usage_cost', String(prevCost + totalCost));
+          window.dispatchEvent(new Event('usage-updated'));
+          
+          onCreditsUsed(Math.ceil(totalTokens / 100), totalTokens, totalCost);
         }
       } else {
         onNotify(result.error || 'Failed to generate summary', 'error');
       }
-    } catch (err) {
-      console.error(err);
+    } catch (error) {
+      console.error('Failed to generate summary:', error);
       onNotify('Failed to generate summary', 'error');
-    } finally {
-      setSummaryLoading(false);
     }
+    
+    setSummaryLoading(false);
   };
 
   useEffect(() => {
     if (isCollapsed && !summary && !summaryLoading) {
-      generateSummary();
+      handleGenerateSummary();
     }
   }, [isCollapsed]);
 
@@ -110,32 +135,99 @@ export default function ThreadDetail({
   const handleSaveToKB = async () => {
     if (!thread) return;
     setIsSavingKB(true);
+    
     try {
       const res = await openaiService.analyzeThreadFull(thread, messages);
-      if (!res.success || !res.data) throw new Error(res.error || 'AI error');
-      // Persist to localStorage knowledge arrays
-      const people = JSON.parse(localStorage.getItem('kb_people') || '[]');
-      const projects = JSON.parse(localStorage.getItem('kb_projects') || '[]');
-      const newPeople = [...people, ...res.data.people.filter((p: string) => !people.includes(p))];
-      const newProjects = [...projects, ...res.data.projects.filter((p: string) => !projects.includes(p))];
-      localStorage.setItem('kb_people', JSON.stringify(newPeople));
-      localStorage.setItem('kb_projects', JSON.stringify(newProjects));
-      onNotify('Thread saved to knowledge base ✔️', 'success');
-    } catch {
+      if (res.success && res.data) {
+        try {
+          const people = JSON.parse(localStorage.getItem('kb_people') || '[]');
+          const projects = JSON.parse(localStorage.getItem('kb_projects') || '[]');
+          const newPeople = [...people, ...res.data.people.filter(p => !people.includes(p))];
+          const newProjects = [...projects, ...res.data.projects.filter(p => !projects.includes(p))];
+          localStorage.setItem('kb_people', JSON.stringify(newPeople));
+          localStorage.setItem('kb_projects', JSON.stringify(newProjects));
+          
+          // Track usage
+          if (res.usage) {
+            const prevTokens = Number(localStorage.getItem('usage_tokens') || '0');
+            const prevCost = Number(localStorage.getItem('usage_cost') || '0');
+            localStorage.setItem('usage_tokens', String(prevTokens + res.usage.tokens));
+            localStorage.setItem('usage_cost', String(prevCost + res.usage.cost));
+            window.dispatchEvent(new Event('usage-updated'));
+            
+            onCreditsUsed(Math.ceil(res.usage.tokens / 100), res.usage.tokens, res.usage.cost);
+          }
+          
+          onNotify('✨ Saved to Knowledge Base!', 'success');
+        } catch {
+          onNotify('Failed to save to knowledge base', 'error');
+        }
+      } else {
+        onNotify(res.error || 'Failed to analyze thread', 'error');
+      }
+    } catch (error) {
+      console.error('Failed to save to KB:', error);
       onNotify('Failed to save to knowledge base', 'error');
-    } finally {
-      setIsSavingKB(false);
     }
+    
+    setIsSavingKB(false);
   };
 
   const handleReject = () => {
-    if (!thread) return;
-    onReject(thread.id);
+    if (!draft) return;
+    onReject(draft.id);
   };
 
   const toggleImportant = () => {
     // This demo just notifies; in real app mutate store
     onNotify(thread.important ? 'Removed from important' : 'Marked as important', 'success');
+  };
+
+  const handleChatSend = async () => {
+    if (!chatInput.trim() || !draft) return;
+    
+    setIsStreaming(true);
+    const userMessage = chatInput.trim();
+    setChatInput('');
+    
+    try {
+      // Simulate streaming by using the improveReply method
+      const result = await openaiService.improveReply(draft.body, userMessage, thread?.subject);
+      
+      if (result.success && result.data) {
+        setStreamingReply(result.data);
+        setHasStreamedReply(true);
+        
+        // Track usage for improvement
+        if (result.usage) {
+          onCreditsUsed(Math.ceil(result.usage.tokens / 100), result.usage.tokens, result.usage.cost);
+        }
+      } else {
+        setStreamingReply('❌ Failed to improve reply: ' + (result.error || 'Unknown error'));
+      }
+    } catch (error) {
+      console.error('Streaming error:', error);
+      setStreamingReply('❌ Error occurred while improving reply');
+    }
+    
+    setIsStreaming(false);
+  };
+
+  const handleAcceptImprovement = () => {
+    if (!streamingReply || streamingReply.startsWith('❌') || !draft) return;
+    setEditedBody(streamingReply);
+    // Update the draft with the improved reply
+    onNotify('Reply improved successfully!', 'success');
+    setShowImproveChat(false);
+    setStreamingReply('');
+    setHasStreamedReply(false);
+  };
+
+  const handleCancelImprovement = () => {
+    setShowImproveChat(false);
+    setStreamingReply('');
+    setHasStreamedReply(false);
+    setChatInput('');
   };
 
   return (
@@ -163,17 +255,21 @@ export default function ThreadDetail({
                 variant="ghost"
                 size="icon"
                 onClick={() => setIsCollapsed(!isCollapsed)}
-                className="ml-auto"
+                className="ml-auto relative group"
+                title={isCollapsed ? "Expand to show full thread" : "Collapse to show AI summary"}
               >
                 {isCollapsed ? (
                   <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                   </svg>
                 ) : (
                   <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
                   </svg>
                 )}
+                <span className="absolute -top-10 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">
+                  {isCollapsed ? "Expand to show full thread" : "Collapse to show AI summary"}
+                </span>
               </Button>
               <Button variant="secondary" size="sm" onClick={handleSaveToKB} disabled={isSavingKB} className="ml-2">
                 {isSavingKB ? 'Saving…' : 'Save to KB'}
@@ -238,70 +334,189 @@ export default function ThreadDetail({
         </div>
         )}
 
-        {/* AI Draft Reply */}
+        {/* AI Draft Reply or Sent Message */}
         {!isCollapsed && draft && (
-          <Card className="border-2 border-blue-200 bg-blue-50">
+          <Card className={`border-2 ${draft.status === 'sent' ? 'border-green-200 bg-green-50' : draft.status === 'rejected' ? 'border-red-200 bg-red-50' : 'border-blue-200 bg-blue-50'}`}>
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle className="text-lg flex items-center gap-2">
-                  <span className="text-blue-600">✨</span>
-                  AI-Generated Reply
+                  <span className={draft.status === 'sent' ? 'text-green-600' : draft.status === 'rejected' ? 'text-red-600' : 'text-blue-600'}>
+                    {draft.status === 'sent' ? '✅' : draft.status === 'rejected' ? '❌' : '✨'}
+                  </span>
+                  {draft.status === 'sent' ? 'Reply Sent' : draft.status === 'rejected' ? 'Reply Rejected' : 'AI-Generated Reply'}
                 </CardTitle>
-                <Badge className="bg-amber-100 text-amber-800">Draft</Badge>
+                <Badge className={
+                  draft.status === 'sent' ? 'bg-green-100 text-green-800' : 
+                  draft.status === 'rejected' ? 'bg-red-100 text-red-800' : 
+                  'bg-amber-100 text-amber-800'
+                }>
+                  {draft.status === 'sent' ? 'Sent' : draft.status === 'rejected' ? 'Rejected' : 'Draft'}
+                </Badge>
               </div>
             </CardHeader>
             <CardContent>
-              <p className="text-gray-700 whitespace-pre-wrap mb-4">{draft.body}</p>
-              <div className="flex gap-2">
-                <Button
-                  onClick={handleApprove}
-                  disabled={isSending || draft.status === 'sent'}
-                  className="bg-green-600 hover:bg-green-700"
-                >
-                  {isSending ? (
+              <Textarea
+                value={isEditing ? editedBody : (streamingReply || draft.body)}
+                onChange={(e) => setEditedBody(e.target.value)}
+                className="resize-none min-h-[200px] w-full text-base leading-relaxed focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white mb-4"
+                placeholder={isEditing ? "Edit your reply here..." : "AI-generated reply"}
+                readOnly={!isEditing}
+                style={{ cursor: isEditing ? 'text' : 'default' }}
+              />
+              
+              {/* Improvement chat interface */}
+              {showImproveChat && (
+                <div className="mb-4 border-t pt-3 space-y-3">
+                  <div className="flex gap-2">
+                    <Textarea
+                      value={chatInput}
+                      onChange={e => setChatInput(e.target.value)}
+                      onKeyDown={e => { 
+                        if (e.key === 'Enter' && !e.shiftKey) { 
+                          e.preventDefault(); 
+                          if (!isStreaming) handleChatSend(); 
+                        } 
+                      }}
+                      className="flex-1 resize-none text-sm"
+                      placeholder="e.g., 'Make it more formal', 'Add details about timeline'..."
+                      rows={2}
+                      disabled={isStreaming}
+                    />
+                    <Button 
+                      className="bg-purple-600 text-white px-4 py-2 rounded font-semibold hover:bg-purple-700 transition disabled:opacity-50 disabled:cursor-not-allowed" 
+                      onClick={handleChatSend}
+                      disabled={isStreaming || !chatInput.trim()}
+                    >
+                      {isStreaming ? 'Improving...' : 'Improve'}
+                    </Button>
+                  </div>
+                  
+                  {isStreaming && (
+                    <div className="text-xs text-purple-600 flex items-center gap-1">
+                      <div className="animate-pulse w-1.5 h-1.5 bg-purple-500 rounded-full"></div>
+                      <span>Generating improved version...</span>
+                    </div>
+                  )}
+                </div>
+              )}
+              
+              {/* Only show action buttons for pending drafts */}
+              {draft.status === 'pending' && (
+                <div className="flex gap-2 flex-wrap">
+                  {isEditing ? (
                     <>
-                      <span className="animate-pulse">Sending...</span>
+                      <Button 
+                        className="bg-green-600 text-white px-4 py-2 rounded font-semibold hover:bg-green-700 transition"
+                        onClick={() => {
+                          if (draft && editedBody !== draft.body) {
+                            onUpdateDraft(draft.id, editedBody);
+                            onNotify('Reply updated successfully!', 'success');
+                          }
+                          setIsEditing(false);
+                        }}
+                      >
+                        ✅ Save Changes
+                      </Button>
+                      <Button 
+                        className="bg-gray-500 text-white px-4 py-2 rounded font-semibold hover:bg-gray-600 transition"
+                        onClick={() => {
+                          setIsEditing(false);
+                          setEditedBody(draft.body);
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                      <Button 
+                        className="bg-purple-600 text-white px-3 py-2 rounded font-semibold hover:bg-purple-700 transition text-sm"
+                        onClick={() => setShowImproveChat(!showImproveChat)}
+                      >
+                        ✨ Improve with AI
+                      </Button>
                     </>
-                  ) : draft.status === 'sent' ? (
-                    'Sent ✓'
                   ) : (
-                    'Approve & Send'
+                    <>
+                      <Button
+                        onClick={handleApprove}
+                        disabled={isSending}
+                        className="bg-green-600 hover:bg-green-700"
+                      >
+                        {isSending ? (
+                          <>
+                            <span className="animate-pulse">Sending...</span>
+                          </>
+                        ) : (
+                          'Approve & Send'
+                        )}
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        onClick={handleReject}
+                        disabled={isSending}
+                      >
+                        Reject & Archive
+                      </Button>
+                      <Button 
+                        className="bg-yellow-600 text-white px-4 py-2 rounded font-semibold hover:bg-yellow-700 transition"
+                        onClick={() => {
+                          setIsEditing(true);
+                          setEditedBody(draft.body);
+                        }}
+                        disabled={isSending}
+                      >
+                        ✏️ Edit Reply
+                      </Button>
+                      <Button 
+                        className="bg-purple-600 text-white px-3 py-2 rounded font-semibold hover:bg-purple-700 transition text-sm"
+                        onClick={() => setShowImproveChat(!showImproveChat)}
+                      >
+                        ✨ Improve with AI
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={handleGenerateReply}
+                        disabled={isSending || isGenerating}
+                        className="w-9 h-9"
+                      >
+                        {isGenerating ? (
+                          <div className="animate-spin h-4 w-4 border-2 border-blue-600 border-t-transparent rounded-full" />
+                        ) : (
+                          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                          </svg>
+                        )}
+                      </Button>
+                      {hasStreamedReply && !streamingReply.startsWith('❌') && (
+                        <Button 
+                          className="bg-green-600 text-white px-3 py-2 rounded font-semibold hover:bg-green-700 transition text-sm"
+                          onClick={handleAcceptImprovement}
+                        >
+                          ✅ Accept Improvement
+                        </Button>
+                      )}
+                    </>
                   )}
-                </Button>
-                <Button
-                  variant="destructive"
-                  onClick={handleReject}
-                  disabled={isSending || draft.status === 'sent'}
-                >
-                  Reject & Archive
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setIsEditing(true);
-                    setEditedBody(draft.body);
-                  }}
-                  disabled={isSending}
-                >
-                  Edit
-                </Button>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={handleGenerateReply}
-                  disabled={isSending || isGenerating}
-                  className="w-9 h-9"
-                >
-                  {isGenerating ? (
-                    <div className="animate-spin h-4 w-4 border-2 border-blue-600 border-t-transparent rounded-full" />
-                  ) : (
-                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                  )}
-                </Button>
-              </div>
+                </div>
+              )}
+              {/* Show only 'New Reply' for sent/rejected */}
+              {(draft.status === 'sent' || draft.status === 'rejected') && (
+                <div className="flex gap-2 mt-4">
+                  <Button
+                    onClick={handleGenerateReply}
+                    disabled={isGenerating}
+                    className="bg-blue-600 hover:bg-blue-700"
+                  >
+                    {isGenerating ? (
+                      <>
+                        <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full mr-2" />
+                        Generating...
+                      </>
+                    ) : (
+                      '🔄 New Reply'
+                    )}
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
         )}
@@ -309,25 +524,48 @@ export default function ThreadDetail({
         {!isCollapsed && !draft && (
           <Card className="border-dashed">
             <CardContent className="py-8 text-center">
-              <div className="flex items-center justify-center gap-2">
-                <Button size="sm" variant="outline">
-                  Edit
-                </Button>
-                <Button
-                  onClick={handleGenerateReply}
-                  disabled={isGenerating}
-                  size="icon"
-                  className="w-10 h-10"
-                >
-                  {isGenerating ? (
-                    <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full" />
-                  ) : (
-                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                  )}
-                </Button>
-              </div>
+              {thread.status === 'rejected' ? (
+                <div className="flex items-center justify-center gap-2">
+                  <Button
+                    onClick={handleGenerateReply}
+                    disabled={isGenerating}
+                    className="bg-blue-600 hover:bg-blue-700"
+                  >
+                    {isGenerating ? (
+                      <>
+                        <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full mr-2" />
+                        Generating...
+                      </>
+                    ) : (
+                      '🔄 New Reply'
+                    )}
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center justify-center gap-2">
+                  <Button 
+                    className="bg-yellow-600 text-white px-4 py-2 rounded font-semibold hover:bg-yellow-700 transition"
+                    size="sm" 
+                    variant="outline"
+                  >
+                    ✏️ Edit
+                  </Button>
+                  <Button
+                    onClick={handleGenerateReply}
+                    disabled={isGenerating}
+                    size="icon"
+                    className="w-10 h-10"
+                  >
+                    {isGenerating ? (
+                      <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full" />
+                    ) : (
+                      <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                    )}
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
         )}
@@ -413,28 +651,7 @@ export default function ThreadDetail({
         </div>
       )}
 
-      {isEditing && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center" onClick={() => setIsEditing(false)}>
-          <div className="bg-white rounded shadow p-6 w-[600px] max-h-[80vh] overflow-y-auto" onClick={(e)=>e.stopPropagation()}>
-            <h3 className="font-bold text-lg mb-4">Edit Reply</h3>
-            <textarea
-              className="w-full h-64 border p-2 rounded resize-none"
-              value={editedBody}
-              onChange={(e) => setEditedBody(e.target.value)}
-            />
-            <div className="text-right mt-4 flex gap-2 justify-end">
-              <Button variant="outline" onClick={() => setIsEditing(false)}>Cancel</Button>
-              <Button onClick={() => {
-                if (draft) {
-                  draft.body = editedBody;
-                  setIsEditing(false);
-                  onNotify('Draft updated', 'success');
-                }
-              }}>Save</Button>
-            </div>
-          </div>
-        </div>
-      )}
+
 
       {activePerson && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center" onClick={()=>setActivePerson(null)}>

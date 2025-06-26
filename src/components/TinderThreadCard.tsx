@@ -257,15 +257,16 @@ const TinderThreadCard = forwardRef<HTMLDivElement, TinderThreadCardProps>(funct
     try {
       const threadContext = `Subject: ${thread.subject}\nParticipants: ${thread.participants.join(', ')}`;
       const stream = openaiService.improveReplyStream(reply, userMessage, threadContext);
-      let fullReply = '';
+      
       for await (const chunk of stream) {
-        fullReply += chunk;
-        setStreamingReply(fullReply);
+        setStreamingReply(chunk);
       }
+      
       setHasStreamedReply(true);
+      
       // Track usage for improvement - estimate tokens and cost
-      // Use the fullReply variable for accurate estimation
-      const estimatedTokens = Math.ceil((reply.length + userMessage.length + fullReply.length) / 4);
+      // Since this is streaming, we estimate based on input/output length
+      const estimatedTokens = Math.ceil((reply.length + userMessage.length + streamingReply.length) / 4);
       const estimatedCost = estimatedTokens * 0.00002; // Rough estimate for GPT-4o
       const prevTokens = Number(localStorage.getItem('usage_tokens') || '0');
       const prevCost = Number(localStorage.getItem('usage_cost') || '0');
