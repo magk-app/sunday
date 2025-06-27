@@ -1,6 +1,7 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import { Card } from '../../components/ui/card';
+import { Input } from '../../components/ui/input';
 import { motion, AnimatePresence } from 'framer-motion';
 import { faComputerMouse, faPeopleArrows } from '@fortawesome/free-solid-svg-icons';
 import { getPeople, getProjects, addPerson, addProject, deletePerson, deleteProject, upsertPerson, upsertProject, getThreads } from '../../lib/entity-storage';
@@ -30,6 +31,19 @@ export default function KnowledgePage() {
   const [threads, setThreads] = useState<EmailThread[]>([]);
   const [showPersonThreads, setShowPersonThreads] = useState<Record<string, boolean>>({});
   const [showProjectThreads, setShowProjectThreads] = useState<Record<string, boolean>>({});
+  const [mounted, setMounted] = useState(false);
+  const [isPersonModalOpen, setIsPersonModalOpen] = useState(false);
+  const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
+
+  // Pagination state
+  const [peoplePage, setPeoplePage] = useState(1);
+  const [projectsPage, setProjectsPage] = useState(1);
+  const [peoplePerPage] = useState(6);
+  const [projectsPerPage] = useState(6);
+
+  // Search/filter state  
+  const [peopleSearch, setPeopleSearch] = useState('');
+  const [projectsSearch, setProjectsSearch] = useState('');
 
   // Load people from storage on mount
   useEffect(() => {
@@ -129,12 +143,34 @@ export default function KnowledgePage() {
     return p && t.participants.includes(p.email);
   }));
 
+  // Filtered and paginated people
+  const filteredPeople = people.filter(person => 
+    person.name.toLowerCase().includes(peopleSearch.toLowerCase()) ||
+    person.email.toLowerCase().includes(peopleSearch.toLowerCase())
+  );
+  const totalPeoplePages = Math.ceil(filteredPeople.length / peoplePerPage);
+  const paginatedPeople = filteredPeople.slice(
+    (peoplePage - 1) * peoplePerPage,
+    peoplePage * peoplePerPage
+  );
+
+  // Filtered and paginated projects
+  const filteredProjects = projects.filter(project =>
+    project.name.toLowerCase().includes(projectsSearch.toLowerCase()) ||
+    (project.description && project.description.toLowerCase().includes(projectsSearch.toLowerCase()))
+  );
+  const totalProjectsPages = Math.ceil(filteredProjects.length / projectsPerPage);
+  const paginatedProjects = filteredProjects.slice(
+    (projectsPage - 1) * projectsPerPage,
+    projectsPage * projectsPerPage
+  );
+
   return (
     <div className="p-6 max-w-5xl mx-auto">
       <h1 className="text-2xl font-bold mb-6">Knowledge Base</h1>
       {/* People header row */}
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-semibold">People</h2>
+        <h2 className="text-xl font-semibold dark:text-white">People ({filteredPeople.length})</h2>
         <PersonFormModal
           triggerLabel="Add Person"
           onSave={(p) => {
@@ -142,23 +178,37 @@ export default function KnowledgePage() {
           }}
         />
       </div>
+      
+      {/* People Search */}
+      <div className="mb-4">
+        <Input
+          type="text"
+          placeholder="Search people by name or email..."
+          value={peopleSearch}
+          onChange={(e) => {
+            setPeopleSearch(e.target.value);
+            setPeoplePage(1); // Reset to first page on search
+          }}
+          className="max-w-md"
+        />
+      </div>
       <div className="grid md:grid-cols-3 gap-4 mb-8">
-        {people.map((person) => (
+        {paginatedPeople.map((person) => (
           <Card key={person.id} className="p-4 cursor-pointer relative group" onClick={()=>setActivePerson(person)}>
             <>
-              <h3 className="font-medium">{person.name}</h3>
+              <h3 className="font-medium text-gray-900 dark:text-white">{person.name}</h3>
               {person.company && (
-                <p className="text-xs text-gray-600">{person.company} • {person.role}</p>
+                <p className="text-xs text-gray-200 dark:text-gray-300">{person.company} • {person.role}</p>
               )}
               {/* Tags */}
               {person.tags && person.tags.length > 0 && (
                 <div className="flex flex-wrap gap-1 mt-1">
                   {person.tags.map((tag) => (
-                    <span key={tag} className="rounded-full bg-gray-100 border px-2 py-0.5 text-[10px] font-semibold text-gray-700">{tag}</span>
+                    <span key={tag} className="rounded-full bg-gray-100 dark:bg-gray-700 border px-2 py-0.5 text-[10px] font-semibold text-gray-700 dark:text-gray-300 dark:border-gray-600">{tag}</span>
                   ))}
                 </div>
               )}
-              {person.notes && <p className="text-xs text-gray-400 mt-1">{person.notes}</p>}
+              {person.notes && <p className="text-xs text-gray-200 dark:text-gray-300 mt-1">{person.notes}</p>}
               {/* Action menu */}
               <div className="absolute top-2 right-2">
                 <div className="relative">
@@ -167,15 +217,15 @@ export default function KnowledgePage() {
                       e.stopPropagation();
                       setMenuPersonId(menuPersonId === person.id ? null : person.id);
                     }}
-                    className="w-6 h-6 flex items-center justify-center text-gray-500 hover:text-gray-800"
+                    className="w-6 h-6 flex items-center justify-center text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
                     title="Actions"
                   >
                     ⋮
                   </button>
                   {menuPersonId === person.id && (
-                    <div className="absolute right-0 mt-2 bg-white rounded-lg shadow-lg border min-w-[140px] py-1 z-50">
+                    <div className="absolute right-0 mt-2 bg-white dark:bg-gray-800 rounded-lg shadow-lg border dark:border-gray-600 min-w-[140px] py-1 z-50">
                       <button
-                        className="block w-full text-left px-3 py-1 text-sm hover:bg-gray-100 cursor-pointer"
+                        className="block w-full text-left px-3 py-1 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer text-gray-900 dark:text-gray-100"
                         onClick={(e) => {
                           e.stopPropagation();
                           setMenuPersonId(null);
@@ -185,7 +235,7 @@ export default function KnowledgePage() {
                         Edit
                       </button>
                       <button
-                        className="block w-full text-left px-3 py-1 text-red-600 text-sm hover:bg-gray-100 cursor-pointer"
+                        className="block w-full text-left px-3 py-1 text-red-600 dark:text-red-400 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
                         onClick={(e) => {
                           e.stopPropagation();
                           setMenuPersonId(null);
@@ -202,9 +252,34 @@ export default function KnowledgePage() {
           </Card>
         ))}
       </div>
+      {/* People Pagination */}
+      {totalPeoplePages > 1 && (
+        <div className="flex justify-center gap-2 mb-8">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setPeoplePage(Math.max(1, peoplePage - 1))}
+            disabled={peoplePage === 1}
+          >
+            Previous
+          </Button>
+          <span className="px-3 py-1 text-sm dark:text-white">
+            Page {peoplePage} of {totalPeoplePages}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setPeoplePage(Math.min(totalPeoplePages, peoplePage + 1))}
+            disabled={peoplePage === totalPeoplePages}
+          >
+            Next
+          </Button>
+        </div>
+      )}
+
       {/* Projects header row */}
       <div className="flex items-center justify-between mb-4 mt-10">
-        <h2 className="text-xl font-semibold">Projects</h2>
+        <h2 className="text-xl font-semibold dark:text-white">Projects ({filteredProjects.length})</h2>
         <ProjectFormModal
           triggerLabel="Add Project"
           onSave={(proj) => {
@@ -212,24 +287,38 @@ export default function KnowledgePage() {
           }}
         />
       </div>
+      
+      {/* Projects Search */}
+      <div className="mb-4">
+        <Input
+          type="text"
+          placeholder="Search projects by name or description..."
+          value={projectsSearch}
+          onChange={(e) => {
+            setProjectsSearch(e.target.value);
+            setProjectsPage(1); // Reset to first page on search
+          }}
+          className="max-w-md"
+        />
+      </div>
       <div className="grid md:grid-cols-3 gap-4">
-        {projects.map((proj) => (
+        {paginatedProjects.map((proj) => (
           <Card key={proj.id} className="p-4 cursor-pointer relative group" onClick={()=>setActiveProject(proj)}>
             <>
-              <h3 className="font-medium">{proj.name}</h3>
-              <p className="text-xs text-gray-600 mb-1">{proj.description}</p>
-              <span className="rounded-full border bg-gray-100 px-2 py-0.5 text-[10px] font-semibold text-gray-700 mt-1 inline-block">{proj.status || 'active'}</span>
+              <h3 className="font-medium text-gray-900 dark:text-white">{proj.name}</h3>
+              <p className="text-xs text-gray-200 dark:text-gray-300 mb-1">{proj.description}</p>
+              <span className="rounded-full border bg-gray-100 dark:bg-gray-700 px-2 py-0.5 text-[10px] font-semibold text-gray-700 dark:text-gray-300 dark:border-gray-600 mt-1 inline-block">{proj.status || 'active'}</span>
               {proj.participants && proj.participants.length > 0 && (
                 <div className="flex flex-wrap gap-1 mt-1">
                   {proj.participants.map((p) => (
-                    <span key={p} className="rounded-full border bg-gray-100 px-2 py-0.5 text-[10px] font-semibold text-gray-700">{p}</span>
+                    <span key={p} className="rounded-full border bg-gray-100 dark:bg-gray-700 px-2 py-0.5 text-[10px] font-semibold text-gray-700 dark:text-gray-300 dark:border-gray-600">{p}</span>
                   ))}
                 </div>
               )}
               {proj.tags && proj.tags.length > 0 && (
                 <div className="flex flex-wrap gap-1 mt-1">
                   {proj.tags.map((tag) => (
-                    <span key={tag} className="rounded-full bg-gray-100 border px-2 py-0.5 text-[10px] font-semibold text-gray-700">{tag}</span>
+                    <span key={tag} className="rounded-full bg-gray-100 dark:bg-gray-700 border px-2 py-0.5 text-[10px] font-semibold text-gray-700 dark:text-gray-300 dark:border-gray-600">{tag}</span>
                   ))}
                 </div>
               )}
@@ -241,15 +330,15 @@ export default function KnowledgePage() {
                       e.stopPropagation();
                       setMenuProjectId(menuProjectId === proj.id ? null : proj.id);
                     }}
-                    className="w-6 h-6 flex items-center justify-center text-gray-500 hover:text-gray-800"
+                    className="w-6 h-6 flex items-center justify-center text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
                     title="Actions"
                   >
                     ⋮
                   </button>
                   {menuProjectId === proj.id && (
-                    <div className="absolute right-0 mt-2 bg-white rounded-lg shadow-lg border min-w-[140px] py-1 z-50">
+                    <div className="absolute right-0 mt-2 bg-white dark:bg-gray-800 rounded-lg shadow-lg border dark:border-gray-600 min-w-[140px] py-1 z-50">
                       <button
-                        className="block w-full text-left px-3 py-1 text-sm hover:bg-gray-100 cursor-pointer"
+                        className="block w-full text-left px-3 py-1 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer text-gray-900 dark:text-gray-100"
                         onClick={(e) => {
                           e.stopPropagation();
                           setMenuProjectId(null);
@@ -259,7 +348,7 @@ export default function KnowledgePage() {
                         Edit
                       </button>
                       <button
-                        className="block w-full text-left px-3 py-1 text-red-600 text-sm hover:bg-gray-100 cursor-pointer"
+                        className="block w-full text-left px-3 py-1 text-red-600 dark:text-red-400 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
                         onClick={(e) => {
                           e.stopPropagation();
                           setMenuProjectId(null);
@@ -277,11 +366,36 @@ export default function KnowledgePage() {
         ))}
       </div>
 
+      {/* Projects Pagination */}
+      {totalProjectsPages > 1 && (
+        <div className="flex justify-center gap-2 mt-8">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setProjectsPage(Math.max(1, projectsPage - 1))}
+            disabled={projectsPage === 1}
+          >
+            Previous
+          </Button>
+          <span className="px-3 py-1 text-sm dark:text-white">
+            Page {projectsPage} of {totalProjectsPages}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setProjectsPage(Math.min(totalProjectsPages, projectsPage + 1))}
+            disabled={projectsPage === totalProjectsPages}
+          >
+            Next
+          </Button>
+        </div>
+      )}
+
       {/* Person Modal */}
       <AnimatePresence>
       {activePerson && (
         <motion.div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center" onClick={() => setActivePerson(null)} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-          <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} transition={{ duration: 0.3, ease: 'easeInOut' }} className="bg-white rounded-xl shadow p-6 w-[380px] max-h-[90vh] overflow-y-auto" onClick={(e)=>e.stopPropagation()}>
+          <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} transition={{ duration: 0.3, ease: 'easeInOut' }} className="bg-white dark:bg-gray-800 rounded-xl shadow p-6 w-[380px] max-h-[90vh] overflow-y-auto border dark:border-gray-600" onClick={(e)=>e.stopPropagation()}>
             {/* Header - match reference */}
             <div className="flex items-center gap-3 mb-4">
               <span className="relative flex shrink-0 overflow-hidden rounded-full w-10 h-10">
@@ -294,15 +408,15 @@ export default function KnowledgePage() {
                 )}
               </span>
               <div>
-                <h3 className="font-bold text-lg">{activePerson.name}</h3>
+                <h3 className="font-bold text-lg text-gray-900 dark:text-white">{activePerson.name}</h3>
                 {activePerson.email && (
-                  <a href={`mailto:${activePerson.email}`} className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-800 transition">
+                  <a href={`mailto:${activePerson.email}`} className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition">
                     <FontAwesomeIcon icon={faEnvelope} className="w-3 h-3" />
                     <span className="break-all">{activePerson.email}</span>
                   </a>
                 )}
                 {activePerson.phone && (
-                  <a href={`tel:${activePerson.phone}`} className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-800 transition mt-1">
+                  <a href={`tel:${activePerson.phone}`} className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition mt-1">
                     <FontAwesomeIcon icon={faPhone} className="w-3 h-3" />
                     <span>{activePerson.phone}</span>
                   </a>
@@ -313,19 +427,19 @@ export default function KnowledgePage() {
             {(activePerson.company || activePerson.role) && (
               <div className="mb-4">
                 {activePerson.company && (
-                  <p className="text-xs"><span className="font-bold">Company:</span> <span className="font-normal">{activePerson.company}</span></p>) }
+                  <p className="text-xs text-gray-900 dark:text-gray-100"><span className="font-bold">Company:</span> <span className="font-normal text-gray-200 dark:text-gray-300">{activePerson.company}</span></p>) }
                 {activePerson.role && (
-                  <p className="text-xs"><span className="font-bold">Role:</span> <span className="font-normal">{activePerson.role}</span></p>) }
+                  <p className="text-xs text-gray-900 dark:text-gray-100"><span className="font-bold">Role:</span> <span className="font-normal text-gray-200 dark:text-gray-300">{activePerson.role}</span></p>) }
               </div>
             )}
 
             {/* Tags */}
             {activePerson.tags && activePerson.tags.length > 0 && (
               <div className="mb-3">
-                <h4 className="text-xs font-semibold text-gray-500 uppercase mb-1">Tags</h4>
+                <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-1">Tags</h4>
                 <div className="flex flex-wrap gap-1">
                   {activePerson.tags.map((t:string) => (
-                    <Badge key={t} variant="secondary" className="text-[10px] px-2 py-0.5">{t}</Badge>
+                    <Badge key={t} variant="secondary" className="text-[10px] px-2 py-0.5 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600">{t}</Badge>
                   ))}
                 </div>
               </div>
@@ -334,8 +448,8 @@ export default function KnowledgePage() {
             {/* Notes */}
             {activePerson.notes && (
               <div className="mb-3">
-                <p className="font-bold text-xs mb-1">Notes</p>
-                <p className="text-xs text-gray-700 whitespace-pre-wrap">{activePerson.notes}</p>
+                <p className="font-bold text-xs mb-1 text-gray-900 dark:text-gray-100">Notes</p>
+                <p className="text-xs text-gray-200 dark:text-gray-300 whitespace-pre-wrap">{activePerson.notes}</p>
               </div>
             )}
             {/* Toggleable thread list */}
@@ -380,19 +494,19 @@ export default function KnowledgePage() {
       <AnimatePresence>
       {activeProject && (
         <motion.div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center" onClick={() => setActiveProject(null)} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-          <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} transition={{ duration: 0.3, ease: 'easeInOut' }} className="bg-white rounded-xl shadow p-6 w-96 max-h-[90vh] overflow-y-auto" onClick={(e)=>e.stopPropagation()}>
-            <h3 className="font-bold text-lg mb-2">{activeProject.name}</h3>
-            <p className="text-sm mb-2">{activeProject.description}</p>
-            <p className="text-xs text-gray-600 mb-2">Status: {activeProject.status}</p>
+          <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} transition={{ duration: 0.3, ease: 'easeInOut' }} className="bg-white dark:bg-gray-800 rounded-xl shadow p-6 w-96 max-h-[90vh] overflow-y-auto border dark:border-gray-600" onClick={(e)=>e.stopPropagation()}>
+            <h3 className="font-bold text-lg mb-2 text-gray-900 dark:text-white">{activeProject.name}</h3>
+            <p className="text-sm mb-2 text-gray-200 dark:text-gray-300">{activeProject.description}</p>
+            <p className="text-xs text-gray-200 dark:text-gray-300 mb-2">Status: {activeProject.status}</p>
             {/* Participants as names */}
             {activeProject.participants && activeProject.participants.length > 0 && (
               <div className="mb-2">
-                <h4 className="text-xs font-semibold text-gray-500 uppercase mb-1">Participants</h4>
+                <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-1">Participants</h4>
                 <div className="flex flex-wrap gap-1">
                   {activeProject.participants.map((pid: string) => {
                     const person = people.find((p) => p.id === pid);
                     return (
-                      <span key={pid} className="rounded-full border bg-gray-100 px-2 py-0.5 text-[10px] font-semibold text-gray-700">
+                      <span key={pid} className="rounded-full border bg-gray-100 dark:bg-gray-700 px-2 py-0.5 text-[10px] font-semibold text-gray-700 dark:text-gray-300 dark:border-gray-600">
                         {person ? person.name : pid}
                       </span>
                     );
@@ -403,10 +517,10 @@ export default function KnowledgePage() {
             {/* Tags */}
             {activeProject.tags && activeProject.tags.length > 0 && (
               <div className="mb-2">
-                <h4 className="text-xs font-semibold text-gray-500 uppercase mb-1">Tags</h4>
+                <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-1">Tags</h4>
                 <div className="flex flex-wrap gap-1">
                   {activeProject.tags.map((t:string) => (
-                    <Badge key={t} variant="secondary" className="text-[10px] px-2 py-0.5">{t}</Badge>
+                    <Badge key={t} variant="secondary" className="text-[10px] px-2 py-0.5 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600">{t}</Badge>
                   ))}
                 </div>
               </div>

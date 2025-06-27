@@ -9,6 +9,7 @@ import { Textarea } from './ui/textarea';
 import { CardContent, CardHeader, CardTitle } from './ui/card';
 import { Avatar } from './ui/avatar';
 import { improveReplyStream } from '../lib/ai/reply';
+import { Button } from './ui/button';
 
 export interface TinderThreadCardProps {
   thread: EmailThread;
@@ -406,7 +407,7 @@ const TinderThreadCard = forwardRef<HTMLDivElement, TinderThreadCardProps>(funct
                     ref={textareaRef}
                     value={isEditing ? editedReply : (streamingReply || reply)}
                     onChange={(e) => onChangeReply?.(e.target.value)}
-                    className="resize-none min-h-[200px] w-full text-base leading-relaxed focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                    className="resize-none min-h-[200px] w-full text-base leading-relaxed focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white text-gray-900"
                     placeholder={isEditing ? "Edit your reply here..." : "AI-generated reply"}
                     readOnly={!isEditing}
                     style={{ cursor: isEditing ? 'text' : 'default' }}
@@ -601,13 +602,11 @@ const TinderThreadCard = forwardRef<HTMLDivElement, TinderThreadCardProps>(funct
                     <div className="border-t pt-6">
                       <h4 className="font-semibold text-gray-800 text-xl mb-4">✉️ Reply Draft</h4>
                       <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-                        <Textarea
-                          value={isEditing ? editedReply : reply}
-                          onChange={(e) => onChangeReply?.(e.target.value)}
-                          className="resize-none w-full text-base leading-relaxed focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white min-h-[300px]"
-                          placeholder={isEditing ? "Edit your reply here..." : "AI-generated reply"}
-                          readOnly={!isEditing}
-                          style={{ cursor: isEditing ? 'text' : 'default' }}
+                        <textarea
+                          className="resize-none w-full text-base leading-relaxed focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white min-h-[300px]"
+                          value={reply || ''}
+                          readOnly
+                          placeholder="No reply draft available"
                         />
                         
                         {/* Improvement chat interface */}
@@ -705,58 +704,43 @@ const TinderThreadCard = forwardRef<HTMLDivElement, TinderThreadCardProps>(funct
                 <div className="p-6 space-y-6">
                   {/* AI Summary */}
                   <div>
-                    <h4 className="font-semibold text-gray-800 text-xl mb-4">📝 Summary</h4>
-                    <div className="bg-gray-50 rounded-lg p-4 border">
-                      <p className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">{thread.summary || 'No summary available.'}</p>
+                    <h4 className="font-semibold text-gray-800 dark:text-gray-200 text-xl mb-4">📝 Summary</h4>
+                    <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 border dark:border-gray-600">
+                      <p className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap leading-relaxed">{thread.summary || 'No summary available.'}</p>
                     </div>
                   </div>
 
-                  {/* People */}
-                  <div>
-                    <h4 className="font-semibold text-gray-800 text-lg mb-3">👥 People</h4>
+                  {/* Knowledge Base Section */}
+                  <div className="mb-8">
+                    <h4 className="font-semibold text-gray-800 dark:text-gray-200 text-lg mb-3">👥 People</h4>
                     <div className="space-y-3">
-                      {relatedPeople.map((person: any) => (
-                        <Card key={person.id} className="p-3">
-                          <div className="flex items-start gap-3">
-                            <Avatar className="w-8 h-8">
-                              <div className="w-full h-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center text-xs text-white font-medium">
-                                {person.name[0].toUpperCase()}
-                              </div>
-                            </Avatar>
-                            <div className="flex-1 min-w-0">
-                              <p className="font-medium text-sm truncate">{person.name}</p>
-                              <p className="text-xs text-gray-500 truncate">{person.email}</p>
-                              {person.company && (
-                                <p className="text-xs text-gray-600">{person.company} · {person.role}</p>
-                              )}
-                              {person.notes && (
-                                <p className="text-xs text-gray-500 mt-1">{person.notes}</p>
-                              )}
-                            </div>
-                          </div>
-                        </Card>
-                      ))}
-                      {relatedPeople.length === 0 && (
-                        <p className="text-xs text-gray-500">No people found.</p>
+                      {kbPeople.length > 0 ? kbPeople.map((person: { id: string; name: string; email: string; company?: string; role?: string; notes?: string; }) => (
+                        <div key={person.id} className="bg-white dark:bg-gray-700 p-3 rounded-lg border dark:border-gray-600">
+                          <h5 className="font-medium text-gray-900 dark:text-white">{person.name}</h5>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{person.email}</p>
+                          {person.company && person.role && (
+                            <p className="text-xs text-gray-600 dark:text-gray-300">{person.company} · {person.role}</p>
+                          )}
+                          {person.notes && (
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{person.notes}</p>
+                          )}
+                        </div>
+                      )) : (
+                        <p className="text-xs text-gray-500 dark:text-gray-400">No people found.</p>
                       )}
                     </div>
                   </div>
-
-                  {/* Projects */}
-                  <div>
-                    <h4 className="font-semibold text-gray-800 text-lg mb-3">📋 Projects</h4>
+                  
+                  <div className="mb-8">
+                    <h4 className="font-semibold text-gray-800 dark:text-gray-200 text-lg mb-3">📋 Projects</h4>
                     <div className="space-y-3">
-                      {relatedProjects.map((project: any) => (
-                        <Card key={project.id} className="p-3">
-                          <h5 className="font-medium text-sm">{project.name}</h5>
-                          <p className="text-xs text-gray-600 mt-1">{project.description}</p>
-                          <Badge className="mt-2 text-xs" variant="outline">
-                            {project.status}
-                          </Badge>
-                        </Card>
-                      ))}
-                      {relatedProjects.length === 0 && (
-                        <p className="text-xs text-gray-500">No projects found.</p>
+                      {kbProjects.length > 0 ? kbProjects.map((project: { id: string; name: string; description?: string; }) => (
+                        <div key={project.id} className="bg-white dark:bg-gray-700 p-3 rounded-lg border dark:border-gray-600">
+                          <h5 className="font-medium text-gray-900 dark:text-white">{project.name}</h5>
+                          <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">{project.description}</p>
+                        </div>
+                      )) : (
+                        <p className="text-xs text-gray-500 dark:text-gray-400">No projects found.</p>
                       )}
                     </div>
                   </div>
@@ -769,60 +753,47 @@ const TinderThreadCard = forwardRef<HTMLDivElement, TinderThreadCardProps>(funct
 
       {/* Reject Dialog */}
       {showRejectDialog && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center" onClick={() => setJumpTarget(jumpTarget)}>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md border dark:border-gray-600">
             <div className="p-6">
-              <h3 className="text-lg font-bold mb-4">Reject Thread</h3>
-              <p className="text-gray-600 mb-6">How would you like to handle this rejected thread?</p>
+              <h3 className="text-lg font-bold mb-4 text-gray-900 dark:text-white">Reply Rejected</h3>
+              <p className="text-gray-600 dark:text-gray-300 mb-6">How would you like to handle this rejected thread?</p>
               
-              <div className="flex flex-col gap-3">
-                <button
-                  onClick={() => {
-                    setShowRejectDialog(false);
-                    onAction('reject_archive');
-                  }}
-                  className="bg-red-600 text-white px-4 py-3 rounded font-semibold hover:bg-red-700 transition text-left"
+              <div className="space-y-3">
+                <Button 
+                  onClick={() => onAction('generate_new')} 
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white"
                 >
-                  🗄️ Archive Only
-                  <div className="text-sm text-red-100 mt-1">Just reject and archive the thread</div>
-                </button>
+                  🔄 Generate New Reply
+                </Button>
                 
-                <button
-                  onClick={() => {
-                    setShowRejectDialog(false);
-                    onAction('reject_with_kb');
-                  }}
-                  className="bg-orange-600 text-white px-4 py-3 rounded font-semibold hover:bg-orange-700 transition text-left"
+                <Button 
+                  onClick={() => onAction('reject_archive')} 
+                  variant="outline" 
+                  className="w-full dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
                 >
-                  📚 Save to Knowledge Base & Archive
-                  <div className="text-sm text-orange-100 mt-1">Extract useful information before archiving</div>
-                </button>
-              </div>
-
-              <div className="flex gap-2 mt-6">
-                <button
-                  onClick={() => setShowRejectDialog(false)}
-                  className="flex-1 bg-gray-500 text-white px-4 py-2 rounded font-semibold hover:bg-gray-600 transition"
+                  📂 Archive Thread
+                </Button>
+                
+                <Button 
+                  onClick={() => onAction('reject_with_kb')} 
+                  variant="outline" 
+                  className="w-full dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
                 >
-                  Cancel
-                </button>
+                  📚 Archive & Save to KB
+                </Button>
               </div>
-
-              {/* Auto-save KB preference toggle */}
-              <div className="mt-4 pt-4 border-t">
-                <label className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={autoSaveKB}
-                    onChange={(e) => {
-                      setAutoSaveKB(e.target.checked);
-                      localStorage.setItem('auto_save_kb', e.target.checked.toString());
-                    }}
-                    className="rounded"
-                  />
-                  <span>Auto-save to Knowledge Base when approving (swipe right)</span>
-                </label>
-              </div>
+            </div>
+            
+            <div className="mt-4 pt-4 border-t dark:border-gray-600">
+              <Button 
+                onClick={() => setJumpTarget(jumpTarget)} 
+                variant="ghost" 
+                size="sm" 
+                className="w-full dark:hover:bg-gray-700 dark:text-gray-300"
+              >
+                Cancel
+              </Button>
             </div>
           </div>
         </div>

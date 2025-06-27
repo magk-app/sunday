@@ -25,45 +25,90 @@ const MODEL_PRICING: Record<string, { input: number; output: number }> = {
 };
 
 class OpenAIService {
-  private apiKey: string;
   private baseURL = 'https://api.openai.com/v1';
 
   constructor() {
-    // Prefer client-safe key if available (development only)
-    this.apiKey = process.env.NEXT_PUBLIC_OPENAI_API_KEY || process.env.OPENAI_API_KEY || '';
+    // API key will be dynamically loaded in each request
+  }
+
+  private getApiKey(): string {
+    // Try to get API key from multiple sources
+    if (typeof window !== 'undefined') {
+      // Client-side: check localStorage first, then settings
+      const storedKey = localStorage.getItem('openai_api_key');
+      if (storedKey) {
+        console.log('[OpenAI] Found API key in localStorage (openai_api_key)');
+        return storedKey;
+      }
+      
+      // Check API keys from settings
+      const apiKeysStr = localStorage.getItem('api_keys');
+      if (apiKeysStr) {
+        try {
+          const apiKeys = JSON.parse(apiKeysStr);
+          const openaiKey = apiKeys.find((key: any) => key.provider === 'openai' && key.isActive);
+          if (openaiKey?.key) {
+            console.log('[OpenAI] Found API key in settings (api_keys)');
+            return openaiKey.key;
+          }
+        } catch (e) {
+          console.warn('[OpenAI] Failed to parse API keys from localStorage');
+        }
+      }
+      
+      console.warn('[OpenAI] No API key found in localStorage');
+    }
+    
+    // Server-side or fallback to environment variables
+    const envKey = process.env.NEXT_PUBLIC_OPENAI_API_KEY || process.env.OPENAI_API_KEY || '';
+    if (envKey) {
+      console.log('[OpenAI] Using environment variable API key');
+    } else {
+      console.error('[OpenAI] No API key found anywhere!');
+    }
+    return envKey;
   }
 
   private async makeRequest(endpoint: string, body: any): Promise<any> {
-    if (!this.apiKey) {
-      if (process.env.NODE_ENV === 'development') {
-        console.warn('[OpenAIService] Missing API key – attempting request anyway (may fail)');
-      }
+    const apiKey = this.getApiKey();
+    if (!apiKey) {
+      const error = 'Missing OpenAI API key. Please add it in Settings → AI → API Keys';
+      console.error('[OpenAI]', error);
+      throw new Error(error);
     }
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`[OpenAIService] → POST ${endpoint}`);
-      console.log('[OpenAIService] Request body:', body);
-    }
-
-    const response = await fetch(`${this.baseURL}${endpoint}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.apiKey}`,
-      },
-      body: JSON.stringify(body),
-    });
-
-    const json = await response.json();
     
+    console.log(`[OpenAI] → POST ${endpoint}`);
     if (process.env.NODE_ENV === 'development') {
-      console.log(`[OpenAIService] ← Response from ${endpoint}:`, json);
+      console.log('[OpenAI] Request body:', body);
     }
 
-    if (!response.ok) {
-      throw new Error(json.error?.message || `HTTP ${response.status}`);
-    }
+    try {
+      const response = await fetch(`${this.baseURL}${endpoint}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify(body),
+      });
 
-    return json;
+      const json = await response.json();
+      
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`[OpenAI] ← Response from ${endpoint}:`, json);
+      }
+
+      if (!response.ok) {
+        const errorMsg = json.error?.message || `HTTP ${response.status}: ${response.statusText}`;
+        console.error('[OpenAI] API Error:', errorMsg);
+        throw new Error(errorMsg);
+      }
+
+      return json;
+    } catch (error) {
+      console.error('[OpenAI] Network/Request Error:', error);
+      throw error;
+    }
   }
 
   private calculateCost(usage: any, model: string): number {
@@ -79,11 +124,12 @@ class OpenAIService {
    */
   private async isContentSafe(text: string): Promise<boolean> {
     try {
+      const apiKey = this.getApiKey();
       const res = await fetch(`${this.baseURL}/moderations`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.apiKey}`,
+          'Authorization': `Bearer ${apiKey}`,
         },
         body: JSON.stringify({ input: text }),
       });

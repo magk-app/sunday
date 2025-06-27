@@ -7,11 +7,12 @@ import Sidebar from '../components/Sidebar';
 import ThreadList from '../components/ThreadList';
 import ThreadDetail from '../components/ThreadDetail';
 import StatusBar from '../components/StatusBar';
-import Notification from '../components/Notification';
-import type { EmailThread, DraftReply, Email } from '../types';
+import Notification, { NotificationType } from '../components/Notification';
+import type { EmailThread, DraftReply, Email, Person, Project } from '../types';
 import { summarizeThread } from '../lib/ai/summarize';
 import { generateReply, improveReply, improveReplyStream } from '../lib/ai/reply';
 import { analyzeThreadFull } from '../lib/ai/extract';
+import { openaiService } from '../lib/openai-service';
 
 type FolderKey = 'inbox' | 'important' | 'approved' | 'rejected';
 
@@ -32,13 +33,13 @@ export default function HomePage() {
   const [drafts, setDrafts] = useState<DraftReply[]>([]);
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
   const [selectedFolder, setSelectedFolder] = useState<FolderKey>('inbox');
-  const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [notification, setNotification] = useState<{ message: string; type: NotificationType } | null>(null);
   const [mounted, setMounted] = useState(false);
   const [tokenUsage, setTokenUsage] = useState<number>(0);
   const [cost, setCost] = useState<number>(0);
   const [threadMessages, setThreadMessages] = useState<Email[]>([]);
-  const [kbPeople, setKbPeople] = useState([]);
-  const [kbProjects, setKbProjects] = useState([]);
+  const [kbPeople, setKbPeople] = useState<Person[]>([]);
+  const [kbProjects, setKbProjects] = useState<Project[]>([]);
 
   // Initialize data only on client to avoid hydration issues
   useEffect(() => {
@@ -63,13 +64,19 @@ export default function HomePage() {
           setDrafts([]);
         }
       } catch { setDrafts([]); }
-      // Load KB people/projects from localStorage
+      
+      // Load KB people/projects from unified storage - FIXED
       try {
-        setKbPeople(JSON.parse(localStorage.getItem('kb_people') || '[]') || []);
-      } catch { setKbPeople([]); }
-      try {
-        setKbProjects(JSON.parse(localStorage.getItem('kb_projects') || '[]') || []);
-      } catch { setKbProjects([]); }
+        const people = await getPeople();
+        const projects = await getProjects();
+        setKbPeople(people);
+        setKbProjects(projects);
+      } catch (error) {
+        console.error('Failed to load KB data:', error);
+        setKbPeople([]);
+        setKbProjects([]);
+      }
+      
       const firstThread = loadedThreads[0];
       if (firstThread) {
         setSelectedThreadId(firstThread.id);
@@ -108,6 +115,10 @@ export default function HomePage() {
           kbProjects.push(proj);
         }
       }
+      
+      // Update state with final KB data
+      setKbPeople(kbPeople);
+      setKbProjects(kbProjects);
     })();
   }, []);
 
@@ -140,11 +151,24 @@ export default function HomePage() {
   // Sync localStorage whenever threads change
   useEffect(() => {
     if (mounted) {
-      threads.forEach(async t => {
-        await updateThread(t.id, t);
-      });
+      Promise.all(
+        threads.map(async t => {
+          await updateThread(t.id, t);
+        })
+      );
     }
   }, [threads, mounted]);
+
+  // Sync localStorage whenever drafts change - FIXED
+  useEffect(() => {
+    if (mounted) {
+      try {
+        localStorage.setItem(LS_DRAFTS_KEY, JSON.stringify(drafts));
+      } catch (error) {
+        console.error('Failed to save drafts to localStorage:', error);
+      }
+    }
+  }, [drafts, mounted]);
 
   // Sync OpenAI usage from localStorage
   useEffect(() => {
@@ -193,18 +217,39 @@ export default function HomePage() {
     // This function is no longer used
   };
 
-  const handleApprove = (draftId: string) => {
+  const handleApprove = async (draftId: string) => {
     const draft = drafts.find(d => d.id === draftId);
     if (!draft || draft.status === 'sent') return;
+    
+    // Update draft status
     setDrafts(prev => prev.map(d => d.id === draftId ? { ...d, status: 'sent', sent_at: new Date() } : d));
-    setThreads(prev => prev.map(t => t.id === selectedThreadId ? { ...t, status: 'approved', has_draft: false } : t));
+    
+    // Update thread status and persist to storage
+    const updatedThread = { status: 'approved' as EmailThread['status'], has_draft: false };
+    setThreads(prev => prev.map(t => t.id === selectedThreadId ? { ...t, ...updatedThread } : t));
+    
+    // Persist to unified storage
+    if (selectedThreadId) {
+      await updateThread(selectedThreadId, updatedThread);
+    }
+    
     setNotification({ message: '✨ Reply sent successfully!', type: 'success' });
     window.dispatchEvent(new Event('storage'));
   };
 
-  const handleReject = (draftId: string) => {
+  const handleReject = async (draftId: string) => {
+    // Remove draft completely
     setDrafts(prev => prev.filter(d => d.id !== draftId));
-    setThreads(prev => prev.map(t => t.id === selectedThreadId ? { ...t, status: 'rejected', has_draft: false } : t));
+    
+    // Update thread status and persist to storage
+    const updatedThread = { status: 'rejected' as EmailThread['status'], has_draft: false };
+    setThreads(prev => prev.map(t => t.id === selectedThreadId ? { ...t, ...updatedThread } : t));
+    
+    // Persist to unified storage
+    if (selectedThreadId) {
+      await updateThread(selectedThreadId, updatedThread);
+    }
+    
     setNotification({ message: 'Reply rejected and deleted', type: 'error' });
     window.dispatchEvent(new Event('storage'));
   };
@@ -212,16 +257,11 @@ export default function HomePage() {
   const handleGenerateReply = async () => {
     if (!selectedThreadId || !selectedThread) return;
     setDrafts(prev => prev.filter(d => !(d.thread_id === selectedThreadId && d.status === 'pending')));
-    setDrafts(prev => prev.filter(d => !(d.thread_id === selectedThreadId && d.status === 'pending')));
-    if (tokenUsage < 5) {
-      setNotification({ message: 'Insufficient credits to generate reply', type: 'error' });
-      return;
-    }
-    // Only remove pending drafts if credits are sufficient
-    setDrafts(prev => prev.filter(d => !(d.thread_id === selectedThreadId && d.status === 'pending')));
+    
     setNotification({ message: 'Generating AI reply...', type: 'success' });
+    
     try {
-      const result = await generateReply(selectedThread, threadMessages);
+      const result = await openaiService.generateReply(selectedThread, threadMessages);
       if (result.success && result.data) {
         const newDraft: DraftReply = {
           id: `draft_${Date.now()}`,
@@ -235,12 +275,11 @@ export default function HomePage() {
         };
         setDrafts(prev => [...prev, newDraft]);
         setThreads(prev => prev.map(t => t.id === selectedThreadId ? { ...t, has_draft: true, status: 'pending' as EmailThread['status'] } : t));
+        
         if (result.usage) {
           const usage = result.usage;
-          const creditsUsed = Math.ceil(usage.tokens / 100);
-          setTokenUsage(prev => prev + creditsUsed);
-          setCost(prev => prev + usage.cost);
-          setNotification({ message: `OpenAI accessed ✔️ Tokens: ${usage.tokens}, Cost: $${usage.cost.toFixed(4)}`, type: 'success' });
+          updateUsageTracking(usage.tokens, usage.cost);
+          setNotification({ message: `✨ AI reply generated! Tokens: ${usage.tokens}, Cost: $${usage.cost.toFixed(4)}`, type: 'success' });
         } else {
           setNotification({ message: '✨ AI reply generated!', type: 'success' });
         }
@@ -249,6 +288,7 @@ export default function HomePage() {
         setNotification({ message: result.error || 'Failed to generate reply', type: 'error' });
       }
     } catch (error) {
+      console.error('Failed to generate reply:', error);
       setNotification({ message: 'Failed to generate reply. Please try again.', type: 'error' });
     }
   };
@@ -279,7 +319,8 @@ export default function HomePage() {
     window.dispatchEvent(new Event('storage'));
   };
 
-  const handleUpdateDraft = (draftId: string, newBody: string) => {
+  const handleUpdateDraft = async (draftId: string, newBody: string) => {
+    // Update draft in state
     setDrafts(prev => {
       const updated = prev.map(d => d.id === draftId ? { ...d, body: newBody, updated_at: new Date() } : d);
       return updated;
@@ -290,7 +331,7 @@ export default function HomePage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col transition-colors">
       <main className="flex flex-1 overflow-hidden">
         <Sidebar selected={selectedFolder} onSelect={handleSelectFolder} />
         <ThreadList 
@@ -309,7 +350,7 @@ export default function HomePage() {
           onReject={handleReject}
           onGenerateReply={handleGenerateReply}
           onUpdateDraft={handleUpdateDraft}
-          onNotify={(message: string, type: 'success' | 'error') => setNotification({ message, type })}
+          onNotify={(message: string, type: NotificationType) => setNotification({ message, type })}
           onCreditsUsed={handleCreditsUsed}
           onSummaryGenerated={handleSummaryGenerated}
         />
@@ -320,7 +361,7 @@ export default function HomePage() {
         totalUsed={tokenUsage}
         cost={cost}
       />
-      <div className="fixed bottom-12 right-6 bg-white/90 px-4 py-2 rounded shadow text-xs text-gray-700 z-50">
+      <div className="fixed bottom-12 right-6 bg-white/90 dark:bg-gray-800/90 px-4 py-2 rounded shadow text-xs text-gray-700 dark:text-gray-300 z-50 border border-gray-200 dark:border-gray-600">
         Tokens used: {tokenUsage} | Cost: ${cost.toFixed(4)}
       </div>
       {notification && (

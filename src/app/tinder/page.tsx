@@ -1,15 +1,12 @@
 'use client';
 import React, { useEffect, useState, useRef } from 'react';
 import { mockThreads } from '../../mock/threads';
+import { mockEmails } from '../../mock/emails';
+import { getThreads, getThreadMessages, updateThread, initMockDataIfNeeded } from '../../lib/entity-storage';
 import TinderThreadCard from '../../components/TinderThreadCard';
 import { Button } from '../../components/ui/button';
-import type { EmailThread, DraftReply } from '../../types';
-import type { Email } from '../../types';
-import { summarizeThread } from '../../lib/ai/summarize';
-import { generateReply } from '../../lib/ai/reply';
-import { analyzeThreadFull } from '../../lib/ai/extract';
-import { getThreads, updateThread, initMockDataIfNeeded, getThreadMessages } from '../../lib/entity-storage';
-import { mockEmails } from '../../mock/emails';
+import type { EmailThread, Email, DraftReply } from '../../types';
+import { openaiService } from '../../lib/openai-service';
 
 interface ThreadWithExtras extends EmailThread { __handled?: boolean }
 
@@ -91,30 +88,45 @@ export default function TinderViewPage() {
     return () => window.removeEventListener('storage', handleStorageChange);
   }, [threads, drafts]);
 
-  // Sync localStorage whenever threads change
+  // Sync localStorage whenever threads change - OPTIMIZED
   useEffect(() => {
-    threads.forEach(async t => {
-      const { __handled, ...threadFields } = t;
-      await updateThread(t.id, threadFields as Partial<EmailThread>);
-    });
+    // Debounce to prevent excessive storage writes
+    const timeoutId = setTimeout(() => {
+      Promise.all(
+        threads.map(async t => {
+          const { __handled, ...threadFields } = t;
+          await updateThread(t.id, threadFields as Partial<EmailThread>);
+        })
+      );
+    }, 300);
+    
+    return () => clearTimeout(timeoutId);
   }, [threads]);
 
-  // Only generate AI for the current thread on start
+  // Only generate AI for the current thread on start - OPTIMIZED
   useEffect(() => {
-    if (!showSplash && threads.length > 0) {
-      (async () => {
+    if (!showSplash && threads.length > 0 && !loadingAI) {
+      // Debounce rapid changes to prevent lag
+      const timeoutId = setTimeout(async () => {
         const t = threads[index];
         if (!t) return; // Guard against undefined
         
-        if (!t.summary || !drafts.find(d => d.thread_id === t.id && d.status === 'pending')) {
+        // Check if we need to process this thread
+        const hasSummary = Boolean(t.summary);
+        const hasDraft = Boolean(drafts.find(d => d.thread_id === t.id && d.status === 'pending'));
+        const isProcessed = t.status === 'approved' || t.status === 'rejected';
+        
+        if (!hasSummary || (!hasDraft && !isProcessed)) {
           setLoadingAI(true);
-          const messages = await getThreadMessages(t.id);
-          let updatedThreads = [...threads];
-          let updatedDrafts = [...drafts];
-          // Generate summary if missing
-          if (!t.summary) {
-            try {
-              const resSum = await summarizeThread(t, messages, true);
+          
+          try {
+            const messages = await getThreadMessages(t.id);
+            let updatedThreads = [...threads];
+            let updatedDrafts = [...drafts];
+            
+            // Generate summary if missing
+            if (!hasSummary) {
+              const resSum = await openaiService.summarizeThread(t, messages);
               if (resSum.success && resSum.data) {
                 updatedThreads[index].summary = resSum.data;
                 // Track usage
@@ -122,15 +134,11 @@ export default function TinderViewPage() {
                   updateUsageTracking(resSum.usage.tokens, resSum.usage.cost);
                 }
               }
-            } catch (error) {
-              console.error('Failed to generate summary:', error);
             }
-          }
-          // Generate reply if missing and not already processed
-          const existingDraft = updatedDrafts.find(d => d.thread_id === t.id && d.status === 'pending');
-          if (!existingDraft && t.status !== 'approved' && t.status !== 'rejected') {
-            try {
-              const resRep = await generateReply(t, messages);
+            
+            // Generate reply if missing and not already processed
+            if (!hasDraft && !isProcessed) {
+              const resRep = await openaiService.generateReply(t, messages);
               if (resRep.success && resRep.data) {
                 const newDraft: DraftReply = {
                   id: `draft_${Date.now()}_${Math.random().toString(36).slice(2)}`,
@@ -149,62 +157,25 @@ export default function TinderViewPage() {
                   updateUsageTracking(resRep.usage.tokens, resRep.usage.cost);
                 }
               }
-            } catch (error) {
-              console.error('Failed to generate reply:', error);
             }
+            
+            setThreads(updatedThreads);
+            setDrafts(updatedDrafts);
+            
+            // REMOVED: Background preloading that was causing lag
+            
+          } catch (error) {
+            console.error('Failed to process thread:', error);
           }
-          setThreads(updatedThreads);
-          setDrafts(updatedDrafts);
-          // Preload next thread in background
-          if (index + 1 < threads.length) {
-            const next = updatedThreads[index + 1];
-            const nextMessages = await getThreadMessages(next.id);
-            if (!next.summary) {
-              summarizeThread(next, nextMessages, true).then(resSum => {
-                if (resSum.success && resSum.data) {
-                  const tCopy = [...updatedThreads];
-                  tCopy[index + 1].summary = resSum.data;
-                  setThreads(tCopy);
-                  // Track usage
-                  if (resSum.usage) {
-                    updateUsageTracking(resSum.usage.tokens, resSum.usage.cost);
-                  }
-                }
-              }).catch(error => console.error('Background summary failed:', error));
-            }
-            const nextDraft = updatedDrafts.find(d => d.thread_id === next.id && d.status === 'pending');
-            if (!nextDraft && next.status !== 'approved' && next.status !== 'rejected') {
-              generateReply(next, nextMessages).then(resRep => {
-                if (resRep.success && resRep.data) {
-                  const newDraft: DraftReply = {
-                    id: `draft_${Date.now()}_${Math.random().toString(36).slice(2)}`,
-                    thread_id: next.id,
-                    user_id: 'user_jack',
-                    body: resRep.data,
-                    generated_at: new Date(),
-                    status: 'pending' as const,
-                    created_at: new Date(),
-                    updated_at: new Date(),
-                  };
-                  const dCopy = [...updatedDrafts, newDraft];
-                  setDrafts(dCopy);
-                  const tCopy = [...updatedThreads];
-                  tCopy[index + 1].has_draft = true;
-                  setThreads(tCopy);
-                  // Track usage
-                  if (resRep.usage) {
-                    updateUsageTracking(resRep.usage.tokens, resRep.usage.cost);
-                  }
-                }
-              }).catch(error => console.error('Background reply failed:', error));
-            }
-          }
+          
           setLoadingAI(false);
         }
-      })();
+      }, 150); // 150ms debounce
+      
+      return () => clearTimeout(timeoutId);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showSplash, index]);
+  }, [showSplash, index, loadingAI]);
 
   // When all cards are processed, show celebration
   useEffect(() => {
@@ -305,7 +276,7 @@ export default function TinderViewPage() {
         setIsProcessing(true);
         const messages = await getThreadMessages(current.id);
         try {
-          const res = await analyzeThreadFull(current, messages);
+          const res = await openaiService.analyzeThreadFull(current, messages);
           if (res.success && res.data) {
             try {
               const people = JSON.parse(localStorage.getItem('kb_people') || '[]');
@@ -356,7 +327,7 @@ export default function TinderViewPage() {
         setIsProcessing(true);
         const messages = await getThreadMessages(current.id);
         try {
-          const res = await analyzeThreadFull(current, messages);
+          const res = await openaiService.analyzeThreadFull(current, messages);
           if (res.success && res.data) {
             try {
               const people = JSON.parse(localStorage.getItem('kb_people') || '[]');
@@ -393,7 +364,7 @@ export default function TinderViewPage() {
       setIsProcessing(true);
       const messages = await getThreadMessages(current.id);
       try {
-        const res = await analyzeThreadFull(current, messages);
+        const res = await openaiService.analyzeThreadFull(current, messages);
         if (res.success && res.data) {
           try {
             const people = JSON.parse(localStorage.getItem('kb_people') || '[]');
@@ -495,7 +466,7 @@ export default function TinderViewPage() {
       
       try {
         const messages = await getThreadMessages(current.id);
-        const result = await generateReply(current, messages);
+        const result = await openaiService.generateReply(current, messages);
         
         if (result.success && result.data) {
           const newDraft: DraftReply = {
@@ -585,32 +556,32 @@ export default function TinderViewPage() {
 
   if (showSplash) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
-        <div className="bg-white rounded-2xl shadow-2xl p-10 max-w-lg text-center animate-fade-in border border-gray-100">
+      <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-10 max-w-lg text-center animate-fade-in border border-gray-100 dark:border-gray-700">
           <div className="text-7xl mb-6 animate-bounce">📧</div>
           <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
             Tinder for Emails
           </h1>
-          <p className="text-gray-600 mb-8 text-lg">Process your emails like a pro</p>
+          <p className="text-gray-600 dark:text-gray-300 mb-8 text-lg">Process your emails like a pro</p>
           
-          <div className="bg-gray-50 rounded-xl p-6 mb-8">
-            <h2 className="text-xl font-semibold mb-4 text-gray-800">How to Swipe</h2>
+          <div className="bg-gray-50 dark:bg-gray-700 rounded-xl p-6 mb-8">
+            <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-gray-200">How to Swipe</h2>
             <div className="space-y-4 text-left">
               <div className="flex items-center gap-3">
                 <span className="text-2xl">👉</span>
-                <span><b>Swipe right</b> to <span className="text-green-600 font-semibold">approve & send</span></span>
+                <span className="dark:text-gray-200"><b>Swipe right</b> to <span className="text-green-600 dark:text-green-400 font-semibold">approve & send</span></span>
               </div>
               <div className="flex items-center gap-3">
                 <span className="text-2xl">👈</span>
-                <span><b>Swipe left</b> to <span className="text-red-600 font-semibold">reject & archive</span></span>
+                <span className="dark:text-gray-200"><b>Swipe left</b> to <span className="text-red-600 dark:text-red-400 font-semibold">reject & archive</span></span>
               </div>
               <div className="flex items-center gap-3">
                 <span className="text-2xl">👆</span>
-                <span><b>Swipe up</b> to <span className="text-blue-600 font-semibold">save to knowledge base</span></span>
+                <span className="dark:text-gray-200"><b>Swipe up</b> to <span className="text-blue-600 dark:text-blue-400 font-semibold">save to knowledge base</span></span>
               </div>
               <div className="flex items-center gap-3">
                 <span className="text-2xl">👇</span>
-                <span><b>Swipe down</b> to <span className="text-yellow-600 font-semibold">edit the AI reply</span></span>
+                <span className="dark:text-gray-200"><b>Swipe down</b> to <span className="text-yellow-600 dark:text-yellow-400 font-semibold">edit the AI reply</span></span>
               </div>
             </div>
           </div>
@@ -623,8 +594,8 @@ export default function TinderViewPage() {
                   <span className="text-xl">🤖</span>
                 </div>
               </div>
-              <div className="text-blue-700 font-semibold text-lg">Generating AI for all emails...</div>
-              <div className="text-gray-500 text-sm">{aiProgress}% complete</div>
+              <div className="text-blue-700 dark:text-blue-400 font-semibold text-lg">Generating AI for all emails...</div>
+              <div className="text-gray-500 dark:text-gray-400 text-sm">{aiProgress}% complete</div>
             </div>
           ) : (
             <button 
@@ -636,7 +607,7 @@ export default function TinderViewPage() {
             </button>
           )}
           
-          <div className="mt-8 text-gray-400 text-sm">
+          <div className="mt-8 text-gray-400 dark:text-gray-500 text-sm">
             ✨ Powered by AI • Built with care
           </div>
         </div>
@@ -676,19 +647,19 @@ export default function TinderViewPage() {
         </div>
         
         {/* Main content */}
-        <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-2xl p-8 max-w-md text-center z-10 border border-white/20">
+        <div className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-2xl shadow-2xl p-8 max-w-md text-center z-10 border border-white/20 dark:border-gray-600/20">
           <div className="text-6xl mb-4">🎉</div>
-          <h2 className="text-4xl font-bold mb-6 text-gray-800">All Done!</h2>
-          <p className="mb-6 text-lg text-gray-700">You've processed all your emails like a champion! 🚀</p>
+          <h2 className="text-4xl font-bold mb-6 text-gray-800 dark:text-white">All Done!</h2>
+          <p className="mb-6 text-lg text-gray-700 dark:text-gray-300">You've processed all your emails like a champion! 🚀</p>
           
           <div className="flex justify-center gap-8 mb-6">
             <div className="text-center">
-              <div className="text-3xl font-bold text-purple-600">{processedCount}</div>
-              <div className="text-sm text-gray-600">Cards Processed</div>
+              <div className="text-3xl font-bold text-purple-600 dark:text-purple-400">{processedCount}</div>
+              <div className="text-sm text-gray-600 dark:text-gray-400">Cards Processed</div>
             </div>
             <div className="text-center">
-              <div className="text-3xl font-bold text-green-600">{timeSaved}</div>
-              <div className="text-sm text-gray-600">Minutes Saved</div>
+              <div className="text-3xl font-bold text-green-600 dark:text-green-400">{timeSaved}</div>
+              <div className="text-sm text-gray-600 dark:text-gray-400">Minutes Saved</div>
             </div>
           </div>
           
@@ -715,13 +686,13 @@ export default function TinderViewPage() {
   }
 
   return (
-    <div className="p-6 flex flex-col items-center gap-6 relative">
+    <div className="p-6 flex flex-col items-center gap-6 relative min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
       {/* Header stats with proper spacing */}
       <div className="w-full max-w-xl flex justify-between items-center mb-4">
-        <span className="text-sm text-gray-700 font-medium">Processed: {processedCount}</span>
-        <span className="text-sm text-gray-700 font-medium ml-8">Time Saved: {timeSaved} min</span>
+        <span className="text-sm text-gray-700 dark:text-gray-300 font-medium">Processed: {processedCount}</span>
+        <span className="text-sm text-gray-700 dark:text-gray-300 font-medium ml-8">Time Saved: {timeSaved} min</span>
         <button 
-          className="ml-auto bg-gray-200 text-gray-700 px-3 py-1 rounded-full text-xs font-semibold hover:bg-gray-300 transition disabled:opacity-50" 
+          className="ml-auto bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-3 py-1 rounded-full text-xs font-semibold hover:bg-gray-300 dark:hover:bg-gray-600 transition disabled:opacity-50" 
           onClick={handleReset} 
           disabled={resetting}
         >
@@ -756,7 +727,7 @@ export default function TinderViewPage() {
           <TinderThreadCard
             key={threads[index].id}
             thread={threads[index]}
-            reply={currentDraft?.body}
+            reply={drafts.find(d => d.thread_id === threads[index].id && d.status === 'pending')?.body}
             isEditing={isEditing}
             editedReply={editedReply}
             onChangeReply={handleChangeReply}
@@ -773,7 +744,7 @@ export default function TinderViewPage() {
       </div>
       
       {/* Fixed footer action bar with proper buttons */}
-      <div className="fixed bottom-0 left-0 w-full flex justify-center items-center bg-white border-t py-4 z-30 shadow-lg">
+      <div className="fixed bottom-0 left-0 w-full flex justify-center items-center bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 py-4 z-30 shadow-lg">
         <button 
           className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold transition-all duration-200 shadow-md hover:shadow-lg" 
           onClick={() => setShowExpand(true)}
@@ -784,7 +755,7 @@ export default function TinderViewPage() {
       
       {/* Card counter */}
       {threads.length > 0 && !showCelebration && (
-        <div className="mt-4 text-gray-500 text-sm font-medium">{cardCount}</div>
+        <div className="mt-4 text-gray-500 dark:text-gray-400 text-sm font-medium">{index + 1} / {threads.length}</div>
       )}
       
       {isEditing && (

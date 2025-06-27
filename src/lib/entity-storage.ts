@@ -60,11 +60,26 @@ export async function deleteThread(id: string): Promise<void> {
  * Call this on app load before any getThreads().
  */
 export async function initMockDataIfNeeded(mockThreads: EmailThread[], mockEmails: Email[]): Promise<void> {
+  console.log('[Storage] Initializing mock data...');
+  console.log('[Storage] Mock threads:', mockThreads.length);
+  console.log('[Storage] Mock emails:', mockEmails.length);
+  
   if (!localStorage.getItem(THREADS_KEY)) {
+    console.log('[Storage] No threads in localStorage, initializing with mock data');
     localStorage.setItem(THREADS_KEY, JSON.stringify(mockThreads));
+  } else {
+    console.log('[Storage] Threads already exist in localStorage');
+    const existing = JSON.parse(localStorage.getItem(THREADS_KEY) || '[]');
+    console.log('[Storage] Existing threads count:', existing.length);
   }
+  
   if (!localStorage.getItem(EMAILS_KEY)) {
+    console.log('[Storage] No emails in localStorage, initializing with mock data');
     localStorage.setItem(EMAILS_KEY, JSON.stringify(mockEmails));
+  } else {
+    console.log('[Storage] Emails already exist in localStorage');
+    const existing = JSON.parse(localStorage.getItem(EMAILS_KEY) || '[]');
+    console.log('[Storage] Existing emails count:', existing.length);
   }
 }
 
