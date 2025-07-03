@@ -1,7 +1,12 @@
 # SundayL & MAGK Development Plan
 ====================================================
+
+====================================================
 ## 0. Operational Tasls
 ====================================================
+
+### Business Tasks
+- [] Upload images of whiteboard from NY Weworks
 ### General Tasks (within code base)
 - [ ] Change name from sundayL to sunday (general tasks and refactoring)
 
