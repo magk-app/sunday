@@ -1,0 +1,28 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Context Handling Guidelines
+
+## Information Gathering
+- **Insufficient context detection**: When user context is unclear or incomplete, proactively scan for relevant files
+- **Targeted questions**: Ask specific follow-up questions rather than making assumptions
+- **File discovery**: Use file search and directory listing to understand project structure
+
+## Documentation Sources
+- **Project docs**: Always check [docs/](mdc:docs) for existing documentation before asking for clarification
+- **Execution docs**: Reference [docs/execution/plan.md](mdc:docs/execution/plan.md) and [docs/execution/bugs.md](mdc:docs/execution/bugs.md) for current project status
+- **Component docs**: Look for existing component documentation like [docs/components/TinderThreadCard.md](mdc:docs/components/TinderThreadCard.md)
+
+## Code Context
+- **Type definitions**: Start with [src/types/index.ts](mdc:src/types/index.ts) to understand data structures
+- **Mock data**: Reference [src/mock/](mdc:src/mock) to understand expected data formats
+- **Configuration**: Check [package.json](mdc:package.json), [tsconfig.json](mdc:tsconfig.json), and [tailwind.config.js](mdc:tailwind.config.js) for project setup
+
+## Missing Details Protocol
+1. Scan relevant directories for existing implementations
+2. Check documentation for established patterns
+3. Ask specific, targeted questions about unclear requirements
+4. Propose solutions based on existing codebase patterns
+

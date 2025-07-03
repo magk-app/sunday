@@ -1,0 +1,28 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Commits and Code Reviews
+
+## Pre-Commit Requirements
+- **Automated checks**: Run linting, static checks, and automated tests for every commit to catch bugs early
+- **Test suite**: Ensure all tests pass before committing, especially for core components like [src/app/page.tsx](mdc:src/app/page.tsx) and [src/app/tinder/page.tsx](mdc:src/app/tinder/page.tsx)
+- **Type checking**: Run TypeScript compiler checks to catch type errors
+
+## Commit Message Standards
+- **Detailed messages**: Write comprehensive commit messages following conventional commit format
+- **Change documentation**: Create corresponding entry in `.cursor-changes` explaining "What changed"
+- **Scope clarity**: Clearly indicate which components or features are affected (e.g., "feat(tinder): add swipe gesture support")
+
+## Self-Review Process
+- **Runtime verification**: Test the actual runtime behavior before opening a PR
+- **Cross-browser checks**: Verify functionality across different browsers
+- **Frontend validation**: Ensure proper dark mode coverage and responsive design
+- **UI consistency**: Follow the design patterns established in [src/components/ui/](mdc:src/components/ui)
+
+## Code Review Focus Areas
+- **Architecture**: Ensure changes align with patterns in [docs/execution/plan.md](mdc:docs/execution/plan.md)
+- **Performance**: Review impact on key user flows like email processing and AI operations
+- **Security**: Validate any changes to [src/lib/openai-service.ts](mdc:src/lib/openai-service.ts) and API integrations
+

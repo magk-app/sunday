@@ -1,0 +1,28 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Development Workflow Guidelines
+
+## Planning Phase
+- **Plan before you build**: Always sketch architecture diagrams, data flows, or pseudocode before starting implementation
+- **Record plans**: Store all planning artifacts in the `.cursor-tasks` folder for future reference
+- **Phase goals**: Summarize each development phase goal in plain English to ensure clarity and alignment
+
+## Documentation Standards
+- **In-code documentation**: Add comprehensive comments explaining intent, especially for complex logic
+- **Architecture**: Reference key files like [src/types/index.ts](mdc:src/types/index.ts) for type definitions and [src/lib/entity-storage.ts](mdc:src/lib/entity-storage.ts) for data management
+- **Component docs**: Document complex components like [src/components/TinderThreadCard.tsx](mdc:src/components/TinderThreadCard.tsx) with usage examples
+
+## Code Organization
+- **Modularization**: Break code into well-defined units or services when it improves clarity
+- **Component structure**: Follow the established pattern in [src/components/](mdc:src/components) for UI components
+- **Service layer**: Organize business logic in [src/lib/](mdc:src/lib) following the pattern of [src/lib/openai-service.ts](mdc:src/lib/openai-service.ts)
+
+## Testing Requirements
+- **Unit tests**: Create unit tests for all new features and utilities
+- **Integration tests**: Test component interactions and data flow
+- **Test coverage**: Ensure critical paths like email processing and AI integrations are thoroughly tested
+- **Mock data**: Use existing mock data patterns from [src/mock/](mdc:src/mock) for consistent testing
+

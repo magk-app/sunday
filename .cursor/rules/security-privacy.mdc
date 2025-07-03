@@ -1,0 +1,54 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# Security & Privacy Guidelines
+
+## Database Security (Supabase RLS)
+- **Row-Level Security**: Enforce per-user access policies for all database tables
+- **RLS policies**: Define policies for each table to restrict data by `auth.uid()`
+- **Schema validation**: Ensure [src/supabase/supabase-schema.sql](mdc:src/supabase/supabase-schema.sql) includes proper RLS policies
+- **User isolation**: Prevent users from accessing other users' data through proper filtering
+
+## AI API Security
+- **API key protection**: Store OpenAI and other AI API keys securely using environment variables
+- **Encrypted storage**: Use encrypted vaults or secure environment variable management
+- **Rate limiting**: Implement per-endpoint rate limits in [src/lib/openai-service.ts](mdc:src/lib/openai-service.ts)
+- **Role-based access**: Ensure AI operations respect user permissions and roles
+
+## Prompt Injection Prevention
+
+### Input Sanitization
+- **Control token removal**: Remove or encode control tokens like `{{`, `}}`, `<|`, `|>`
+- **Input validation**: Validate all user inputs before passing to AI services
+- **Character escaping**: Properly escape special characters in user content
+
+### System Prompt Protection
+- **Prompt isolation**: Use system prompts at the start to define strict behavior boundaries
+- **Override prevention**: Prevent user inputs from overriding system instructions
+- **Instruction validation**: Validate that AI follows intended instructions regardless of user input
+
+### Whitelisting & Validation
+- **Allowed actions**: Maintain whitelist of safe operations for AI to perform
+- **Instruction parsing**: Validate parsed instructions against known safe operations
+- **Operation boundaries**: Clearly define what operations AI can and cannot perform
+
+### Context Segmentation
+- **Token-based isolation**: Isolate new user content from system context
+- **Context boundaries**: Maintain clear separation between system and user contexts
+- **Injection scope minimization**: Reduce potential scope of injection attacks through segmentation
+
+## Data Privacy
+- **User data protection**: Ensure user emails and personal data are properly protected
+- **Audit logging**: Log access to sensitive data for security auditing
+- **Data minimization**: Only collect and process data necessary for functionality
+- **Retention policies**: Implement appropriate data retention and deletion policies
+
+## API Security Best Practices
+- **Authentication**: Ensure all API endpoints require proper authentication
+- **Authorization**: Verify user permissions before processing requests
+- **Input validation**: Validate all inputs to prevent injection attacks
+- **Error handling**: Avoid exposing sensitive information in error messages
+
+

@@ -1,0 +1,35 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Model Selection Guidelines
+
+## Task-Based Model Selection
+
+### SONNET 4 - Development & Building
+- **Primary use**: Active development and feature implementation
+- **Ideal for**: Building new components, implementing features, routine development tasks
+- **Examples**: Creating new pages like email management, implementing UI components
+
+### SONNET 3.5 - General Tasks
+- **Primary use**: Well-rounded, general-purpose tasks
+- **Ideal for**: Code refactoring, documentation updates, minor feature additions
+- **Examples**: Updating [README.md](mdc:README.md), modifying existing components, general maintenance
+
+### O3 - Complex Problem Solving
+- **Primary use**: Complex problems requiring deep reasoning and bug investigation
+- **Ideal for**: Difficult debugging, architectural decisions, performance optimization
+- **Examples**: Resolving integration issues between [src/app/page.tsx](mdc:src/app/page.tsx) and [src/app/tinder/page.tsx](mdc:src/app/tinder/page.tsx)
+
+### Gemini 2.5 - Refactoring
+- **Primary use**: Code refactoring and optimization
+- **Ideal for**: Restructuring components, improving code organization, pattern implementation
+- **Examples**: Refactoring [src/lib/](mdc:src/lib) services, optimizing component structure
+
+## Model Selection Criteria
+- **Task complexity**: Match model capability to problem difficulty
+- **Context requirements**: Consider token limits for large codebases
+- **Reasoning depth**: Use O3 for problems requiring multi-step analysis
+- **Speed requirements**: Use SONNET 3.5 for quick iterations
+

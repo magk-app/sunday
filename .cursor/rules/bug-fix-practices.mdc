@@ -1,0 +1,43 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Bug Fix Practices
+
+## 1. Reproduce Phase
+- **Minimal reproduction**: Confirm and document minimal steps to reproduce the issue
+- **Environment details**: Record browser, OS, and any relevant configuration details
+- **Documentation**: Update [docs/execution/bugs.md](mdc:docs/execution/bugs.md) with reproduction steps
+
+## 2. Isolate Phase
+- **Binary search**: Use systematic elimination to narrow down the source
+- **Feature toggles**: Temporarily disable features to isolate the problem
+- **Failing tests**: Write a failing test that captures the exact bug scenario
+- **Component isolation**: Test individual components like [src/components/TinderThreadCard.tsx](mdc:src/components/TinderThreadCard.tsx) in isolation
+
+## 3. Fix Phase
+- **Root cause**: Address the underlying cause, not just symptoms
+- **Coding standards**: Adhere to project patterns established in [src/lib/](mdc:src/lib)
+- **Minimal changes**: Make the smallest possible change that fixes the issue
+- **Type safety**: Ensure TypeScript types in [src/types/index.ts](mdc:src/types/index.ts) are updated if needed
+
+## 4. Test Phase
+- **Full suite**: Run complete test suite to ensure no regressions
+- **Unit tests**: Add specific unit tests for the bug scenario
+- **Integration tests**: Test component interactions and data flow
+- **Regression tests**: Ensure the specific bug cannot reoccur
+- **Smoke tests**: Verify core functionality like email processing and AI features
+
+## 5. Review & Document Phase
+- **PR description**: Clearly explain "What's the issue?" → "What changed?"
+- **API documentation**: Update relevant API docs if interfaces changed
+- **Component docs**: Update component documentation for behavior changes
+- **Bug log**: Mark as resolved in [docs/execution/bugs.md](mdc:docs/execution/bugs.md)
+
+## 6. Deploy & Monitor Phase
+- **Incremental rollout**: Use canary or staged deployment when possible
+- **Log monitoring**: Check application logs for related errors
+- **Metrics verification**: Ensure key metrics show the fix is effective
+- **User feedback**: Monitor for any user reports of related issues
+

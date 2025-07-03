@@ -1,0 +1,71 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# Development Workflow - Master Index
+
+This project follows a comprehensive development workflow with specialized guidelines for different aspects of the development process. All rules are designed to work together to ensure high-quality, secure, and maintainable code.
+
+## Core Workflow Rules
+
+### [Development Workflow](mdc:.cursor/rules/development-workflow.mdc)
+- Planning and architecture design
+- Documentation standards and in-code comments
+- Code organization and modularization
+- Testing requirements and coverage
+
+### [Commits and Code Reviews](mdc:.cursor/rules/commits-and-reviews.mdc)
+- Pre-commit automated checks and validation
+- Commit message standards and change documentation
+- Self-review process and cross-browser testing
+- Code review focus areas and approval criteria
+
+### [Context Handling](mdc:.cursor/rules/context-handling.mdc)
+- Information gathering and file discovery
+- Documentation sources and project context
+- Missing details protocol and clarification process
+
+## Technical Guidelines
+
+### [Model Selection](mdc:.cursor/rules/model-selection.mdc)
+- AI model selection based on task complexity
+- SONNET 4 for development, O3 for complex problems
+- Gemini 2.5 for refactoring, SONNET 3.5 for general tasks
+
+### [Bug Fix Practices](mdc:.cursor/rules/bug-fix-practices.mdc)
+- Systematic 6-phase bug fixing methodology
+- Reproduction, isolation, fixing, testing, documentation, deployment
+- Emphasis on root cause analysis and regression prevention
+
+### [Refactoring Guidelines](mdc:.cursor/rules/refactoring-guidelines.mdc)
+- Incremental refactoring with small commits
+- UI-specific considerations including dark mode
+- Testing guardrails and peer review focus
+
+## Operations & Security
+
+### [Monitoring & Alerting](mdc:.cursor/rules/monitoring-alerting.mdc)
+- Agent performance metrics and context window management
+- Alert systems and logging infrastructure
+- Performance thresholds and analytics
+
+### [Security & Privacy](mdc:.cursor/rules/security-privacy.mdc)
+- Database security with Supabase RLS policies
+- AI API security and prompt injection prevention
+- Data privacy and API security best practices
+
+### [Prompt Management](mdc:.cursor/rules/prompt-management.mdc)
+- Template library management and versioning
+- Performance metrics and A/B testing framework
+- Quality assurance and continuous improvement
+
+## Project Context
+- Main application: [src/app/page.tsx](mdc:src/app/page.tsx)
+- Component library: [src/components/](mdc:src/components/)
+- Business logic: [src/lib/](mdc:src/lib/)
+- Type definitions: [src/types/index.ts](mdc:src/types/index.ts)
+- Project documentation: [docs/](mdc:docs/)
+- Execution tracking: [docs/execution/plan.md](mdc:docs/execution/plan.md)
+
+

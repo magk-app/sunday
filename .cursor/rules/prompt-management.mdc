@@ -1,0 +1,51 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Prompt Management & Evaluation
+
+## Template Library Management
+- **Reusable patterns**: Store common prompt patterns in `.cursor-prompts/` directory
+- **Version control**: Maintain version history for all prompt templates
+- **Template organization**: Categorize prompts by task type (debugging, feature development, refactoring)
+- **Documentation**: Document when and how to use each prompt template
+
+## Performance Metrics Tracking
+- **Output quality**: Assess accuracy, relevance, and completeness of AI responses
+- **Response times**: Track latency for different types of prompts and tasks
+- **User satisfaction**: Collect feedback on AI assistant helpfulness and accuracy
+- **Task success rates**: Measure completion rates for different prompt types
+
+## A/B Testing Framework
+- **Prompt variations**: Test different phrasings and structures for similar tasks
+- **Performance comparison**: Compare effectiveness of different prompt approaches
+- **Optimization goals**: Focus on clarity, accuracy, and task completion speed
+- **Data collection**: Systematically collect results for analysis and improvement
+
+## Prompt Optimization Process
+- **Clarity testing**: Ensure prompts produce consistent, expected results
+- **Correctness validation**: Verify AI responses meet quality and accuracy standards
+- **Iteration cycles**: Regularly review and improve prompt effectiveness
+- **Best practices**: Document successful prompt patterns for future use
+
+## Review and Maintenance
+- **Regular audits**: Periodically assess prompt library effectiveness
+- **Feedback integration**: Incorporate user feedback into prompt improvements
+- **Template updates**: Keep prompts current with project evolution and new requirements
+- **Performance analysis**: Use metrics to identify areas for prompt enhancement
+
+## Context-Specific Prompts
+- **Project awareness**: Ensure prompts reference relevant project files and patterns
+- **Code context**: Include references to [src/types/index.ts](mdc:src/types/index.ts) and other key files when relevant
+- **Documentation integration**: Link to [docs/execution/plan.md](mdc:docs/execution/plan.md) and other project docs
+- **Component patterns**: Reference established patterns from [src/components/](mdc:src/components) in development prompts
+
+## Quality Assurance
+- **Consistency checks**: Ensure prompts produce reliable, repeatable results
+- **Error handling**: Design prompts to handle edge cases and unexpected inputs gracefully
+- **Validation rules**: Establish criteria for acceptable prompt performance
+- **Continuous improvement**: Regularly refine prompts based on performance data
+
+
+

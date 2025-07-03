@@ -1,0 +1,48 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Refactoring Guidelines
+
+## Scope Definition
+- **Component identification**: Identify specific components needing refactoring (e.g., ensure dark mode applies to all UI elements)
+- **Boundary setting**: Define clear boundaries for refactoring scope
+- **Impact assessment**: Evaluate how changes will affect dependent components
+
+## Analysis Phase
+- **Linting**: Run ESLint and other linters to identify code quality issues
+- **Formatting**: Use Prettier to identify formatting inconsistencies
+- **Type checking**: Run TypeScript compiler to find type-related improvements
+- **Architecture review**: Assess alignment with patterns in [src/lib/](mdc:src/lib) and [src/components/](mdc:src/components)
+
+## Incremental Changes
+- **Small commits**: Apply small, targeted refactors per commit for easier review
+- **Atomic operations**: Focus on one improvement at a time (rename, extract, DRY)
+- **Pattern consistency**: Follow established patterns from [src/components/ui/](mdc:src/components/ui)
+- **Naming conventions**: Ensure consistent naming across the codebase
+
+## Testing Guardrails
+- **Test maintenance**: Keep all existing tests passing throughout refactoring
+- **Snapshot tests**: Add visual regression tests for UI component changes
+- **Behavioral tests**: Ensure refactored code maintains identical behavior
+- **Mock data**: Use consistent patterns from [src/mock/](mdc:src/mock) for testing
+
+## UI-Specific Refactoring
+- **Dark mode coverage**: Ensure all UI elements support dark mode theming
+- **Responsive design**: Verify components work across all screen sizes
+- **Component consistency**: Follow patterns established in [src/components/ThreadDetail.tsx](mdc:src/components/ThreadDetail.tsx)
+- **Accessibility**: Maintain or improve accessibility standards
+
+## Peer Review Focus
+- **Readability**: Ensure code is more readable after refactoring
+- **Maintainability**: Verify improved maintainability and reduced complexity
+- **Design patterns**: Check adherence to established architectural patterns
+- **UX feedback**: Gather user experience input for styling and interaction changes
+
+## Documentation Updates
+- **Architecture diagrams**: Update relevant diagrams to reflect structural changes
+- **Coding standards**: Revise standards documentation for new patterns
+- **Component docs**: Update documentation like [docs/components/TinderThreadCard.md](mdc:docs/components/TinderThreadCard.md)
+- **API changes**: Document any interface or API modifications
+

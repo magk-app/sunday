@@ -1,0 +1,45 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Monitoring & Alerting Guidelines
+
+## Agent Performance Metrics
+- **Response times**: Track AI assistant response latency for different task types
+- **Error rates**: Monitor failure rates for code generation, analysis, and tool execution
+- **Resource utilization**: Track memory and computation usage during complex operations
+- **Task completion**: Measure success rates for different types of development tasks
+
+## Context Window Management
+- **Token usage tracking**: Calculate current token usage vs. maximum allowed context
+- **Threshold alerts**: Notify user when context usage exceeds 80% capacity
+- **Usage percentage**: Display exact percentage when approaching limits
+- **Context optimization**: Suggest ways to reduce context when nearing limits
+
+## Alert Systems
+- **Inline warnings**: Surface performance warnings directly in the development flow
+- **Notification system**: Use [src/components/Notification.tsx](mdc:src/components/Notification.tsx) for user alerts
+- **Metric degradation**: Alert on latency spikes, high error rates, or resource issues
+- **Proactive monitoring**: Detect patterns that may lead to issues before they occur
+
+## Logging Infrastructure
+- **Alert recording**: Log all alerts and performance data in `.cursor-logs/` directory
+- **Retrospective analysis**: Maintain logs for post-incident analysis and improvement
+- **Performance trends**: Track metrics over time to identify patterns
+- **Debug information**: Include relevant context for troubleshooting issues
+
+## Performance Thresholds
+- **Response time**: Alert if responses take longer than expected for task complexity
+- **Context usage**: Warning at 70%, alert at 80%, critical at 90% context usage
+- **Error rate**: Alert if error rate exceeds normal baseline for project
+- **Resource usage**: Monitor memory and CPU usage during intensive operations
+
+## Reporting & Analytics
+- **Daily summaries**: Generate performance summaries for development sessions
+- **Trend analysis**: Identify performance improvements or degradations over time
+- **Usage patterns**: Track which features and tools are used most frequently
+- **Optimization opportunities**: Identify areas for performance improvement
+
+
+
