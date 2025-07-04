@@ -41,18 +41,6 @@
   - If not available, consider removing from dependencies until a public release is available.
   - Update `package.json` accordingly.
 
----
-## 🗂️ Dependency Issues (Unresolved)
-
-#### ⬜ `langgraph` Not Found in npm Registry
-- **See above for details.**
-- **Update**: Remove 'langgraph' from dependencies in package.json until a public npm release is available. If needed, install from GitHub as per official docs.
-
-#### ⬜ `langchain` and `googleapis` Version Conflict
-- **See above for details.**
-- **Update**: If 'langchain' integration is required, downgrade 'googleapis' to ^126.0.1 as per langchain requirements.
-
-
 ## ✅ Completed Bugs & Feature Changes
 
 #### Tailwind CSS Not Working Initially
@@ -120,52 +108,5 @@
 - **Description**: Approve/reject actions had no visual feedback. (Feature improvement)
 - **Note**: This was a feature change, not a bug.
 - **Solution/Fix**: Added loading states, animations, and notifications.
-
-
-
----
-## 📝 Known Limitations / TODO
-
-### Critical
-- [ ] Integrate real email/database (currently using mock data)
-  - **Details**: All email data is currently mocked. Need to connect to Supabase and Gmail API for real data.
-  - **Guidance**: Review Supabase and Gmail API documentation for integration steps. Use environment variables for credentials.
-  - **Next Steps**: Set up Supabase tables and Gmail API integration as per `plan.md`.
-- [ ] Implement real email sending (currently simulated)
-  - **Details**: Approve action simulates sending but does not actually send emails.
-  - **Guidance**: Use Gmail API to send emails from backend. Ensure proper OAuth scopes and user consent.
-  - **Next Steps**: Implement backend logic to send emails via Gmail API.
-- [ ] Add user authentication
-  - **Details**: No authentication is currently implemented. Considering Google Authentication for seamless sign-in.
-  - **Guidance**: Use [NextAuth.js](https://next-auth.js.org/) with the Google provider for easy integration with Next.js. Set up Google Cloud OAuth credentials and add to `.env.local`.
-  - **Next Steps**: Install NextAuth, configure Google provider, and protect routes/components as needed.
-- [ ] Add email search and filtering capabilities
-  - **Details**: No way to search or filter emails in the UI. This is essential for usability as email volume grows.
-  - **Guidance**: Implement search bar and filter options in the email list component. Consider debounced search and filter by sender/date/status.
-  - **Next Steps**: Add search bar and filter options to email list component.
-- [ ] Improve task list and email tracking
-  - **Details**: Current task tracking is basic. Need to better track emails as tasks and provide actionable task management.
-  - **Guidance**: Enhance task model, UI, and workflow for tracking and managing email-derived tasks. Consider linking tasks to email threads.
-  - **Next Steps**: Enhance task model, UI, and workflow for tracking and managing email-derived tasks.
-
-### Nice to Have / Future
-- [ ] Improve performance for large numbers of emails/threads
-  - **Details**: Performance may degrade with large datasets. Optimize queries, pagination, and rendering.
-  - **Guidance**: Use pagination/infinite scroll and memoization for large lists.
-  - **Next Steps**: Profile and optimize rendering and data fetching.
-- [ ] Enhance responsive design for mobile devices
-  - **Details**: UI is functional but could be improved for mobile and tablet users.
-  - **Guidance**: Use Tailwind responsive utilities and test on multiple devices.
-  - **Next Steps**: Refine CSS and layout for mobile breakpoints.
-- [ ] Test thread grouping with various email scenarios
-  - **Details**: Ensure thread grouping logic works for edge cases and complex conversations.
-  - **Guidance**: Create test cases with complex and nested threads.
-  - **Next Steps**: Test and refine thread grouping logic.
-- [ ] Verify AI reply generation handles edge cases
-  - **Details**: AI reply works, but should be tested with unusual or complex email threads.
-  - **Guidance**: Test with edge case emails and review AI output for quality.
-  - **Next Steps**: Add more test cases for AI reply generation.
-
----
 
 **Last Updated**: 2025-06-25

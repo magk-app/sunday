@@ -86,6 +86,8 @@ operation Tasks
 ===============================
 - Create a new client CRM that tracks the name of the client, company, role, automation need, and platform example, LinkedIn name, and email to track CRMs, and also another status that tracks the different steps of pipeline. So step one is lead discovery, initial meeting, workflow automating, workflow automated, and other things that's important. And finally, set up like an approximate deal side per month to track the number of money.
 - Create a application CRM application and grants for grant applications, startup accelerator application, and other applications used to track funding, angel investments, and other things. That is very important. Ensure that it has the following content. Name, type of application, stage, due date, apply link, notes.
+- Find a way to keep track of financial for the company with a spreadsheet or another way of tracking expenses 
+- Find a way to keep track of hiring pipeine and leads for the company? (expand this??)
 
 ===============================
 MISC Tasks
